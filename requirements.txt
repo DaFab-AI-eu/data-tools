@@ -1,0 +1,6 @@
+pystac==1.12.2
+pystac-client==0.8.3
+odc-algo==0.2.3
+odc-geo==0.4.8
+odc-stac==0.3.10
+odc-ui==0.2.1
