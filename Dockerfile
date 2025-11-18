@@ -1,7 +1,10 @@
-FROM python:3.10-slim
+FROM dasi:latest
+
+WORKDIR /tmp
 
 COPY requirements.txt .
 
 RUN set -ex; \
-    pip3 install --no-cache-dir --upgrade pip && \
-    pip3 install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    rm -rf /tmp/*
