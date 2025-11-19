@@ -34,8 +34,8 @@ def _parse_arguments():
     arg_parses.add_argument(
         "--max_items",
         type=int,
-        help="Maximum number of items to retrieve. default: 10",
-        default=10,
+        help="Maximum number of items to retrieve. default: 100",
+        default=100,
     )
     arg_parses.add_argument(
         "--collections",
@@ -71,6 +71,9 @@ def get_seach_params():
     """Get search parameters for Copernicus STAC."""
 
     args = _parse_arguments()
+
+    if args.verbose:
+        print(f"max items: {args.max_items}")
 
     bbox = args.bbox.split(",")
     if len(bbox) == 4:
