@@ -16,6 +16,16 @@ __email__ = "metin.cakircali@ecmwf.int"
 
 
 class CopernicusIngestor:
+    """
+    Ingests and retrieves products from the Copernicus STAC API (https://stac.dataspace.copernicus.eu/v1).
+
+    :param max_items: Maximum number of items to retrieve
+    :param collections: Collections to search in
+    :param datetime: Datetime range for the search
+    :param bbox: Bounding box for the search
+    :param cloud_cover_max: Maximum cloud cover percentage
+    :param verbose: Enable verbose output
+    """
 
     def __init__(
         self,
@@ -35,11 +45,18 @@ class CopernicusIngestor:
         self.cloud_cover_max = cloud_cover_max
         self.verbose = verbose
 
+        # Initialize the STAC client for Copernicus Dataspace
         self.catalog = Client.open("https://stac.dataspace.copernicus.eu/v1")
         self.catalog.add_conforms_to("ITEM_SEARCH")
 
-    def get_seach_params(self):
-        """Get search parameters for Copernicus STAC."""
+    def _get_seach_params(self):
+        """
+        Build search parameters for querying Copernicus STAC API based on instance attributes
+
+        :param self: The CopernicusIngestor instance containing search criteria
+        :return: Dictionary of search parameters for the STAC API
+        :rtype: dict[str, Any]
+        """
 
         if self.verbose:
             print(f"Max items: {self.max_items}")
@@ -84,14 +101,27 @@ class CopernicusIngestor:
         }
 
     def get_products(self):
-        """Get products from Copernicus STAC based on search parameters."""
+        """
+        Retrieve all Copernicus products matching the current search parameters
 
-        params = self.get_seach_params()
+        :param self: The CopernicusIngestor instance
+        :return: An iterator over matching product items
+        :rtype: Iterator[Item]
+        """
+
+        params = self._get_seach_params()
 
         return self.catalog.search(**params).items()
 
     def get_product(self, product_id):
-        """Get a specific product by its ID from Copernicus STAC."""
+        """
+        Retrieve a product item from the catalog by its product ID
+
+        :param self: The CopernicusIngestor instance
+        :param product_id: Unique identifier of the product to retrieve
+        :return: The product item if found, otherwise None
+        :rtype: Item | None
+        """
 
         return next(self.catalog.get_items(product_id), None)
 
