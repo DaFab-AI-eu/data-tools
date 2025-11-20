@@ -1,16 +1,15 @@
 """
-Search Copernicus STAC for products based on user-defined parameters.
+Search Copernicus STAC for products based on user-defined parameters and
+output the product IDs to a JSON file.
 
 Example usage:
-    python search.py --max_items 100 --collections sentinel-2-l2a --bbox "6.95,50.65,7.25,50.85" --datetime "2023-01-01/2023-12-31" --cloud_cover_max 20.0
+    python copernicus/search.py --max_items 100 --collections sentinel-2-l2a --bbox "6.95,50.65,7.25,50.85" --datetime "2025-01-21/2025-01-23" --cloud_cover_max 100.0
 
 """
 
-import json
+import argparse
 
-from tifffile import product
-from helpers import get_seach_params
-from pystac_client import Client
+from pydafab import CopernicusIngestor
 
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
@@ -19,24 +18,65 @@ __author__ = "Metin Cakircali"
 __email__ = "metin.cakircali@ecmwf.int"
 
 
+def _parse_arguments():
+    """Parse command line arguments for searching Copernicus STAC."""
+
+    arg_parses = argparse.ArgumentParser("search_copernicus_stac")
+
+    arg_parses.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose output",
+    )
+    arg_parses.add_argument(
+        "--max_items",
+        type=int,
+        help="Maximum number of items to retrieve. default: 100",
+        default=100,
+    )
+    arg_parses.add_argument(
+        "--collections",
+        type=str,
+        help="Collections to search in. default: sentinel-2-l2a",
+        default="sentinel-2-l2a",
+    )
+    arg_parses.add_argument(
+        "--datetime",
+        type=str,
+        help="Datetime range for the search in the format 'start/end'. e.g., '2025-01-01/2025-01-31'",
+        required=True,
+    )
+    arg_parses.add_argument(
+        "--bbox",
+        type=str,
+        help="Bounding box for the search in the format 'min_lon,min_lat,max_lon,max_lat'. e.g., '6.95,50.65,7.25,50.85'",
+        required=True,
+    )
+    arg_parses.add_argument(
+        "--cloud_cover_max",
+        type=float,
+        help="Maximum cloud cover percentage. default: 100.0",
+        default=100.0,
+    )
+
+    argparse.Namespace(verbose=False)
+
+    return arg_parses.parse_args()
+
+
 def main():
-    """Search Copernicus STAC and print found item IDs."""
+    """Main function to search Copernicus STAC and dump product IDs."""
 
-    products = []
+    args = _parse_arguments()
 
-    params = get_seach_params()
-
-    catalog = Client.open("https://stac.dataspace.copernicus.eu/v1")
-    catalog.add_conforms_to("ITEM_SEARCH")
-
-    resp = catalog.search(**params)
-
-    for item in resp.items():
-        products.append(item.id)
-
-    # Save product IDs to a JSON file
-    with open("/tmp/product_ids.json", "w") as f:
-        json.dump(products, f, indent=2)
+    CopernicusIngestor(
+        max_items=args.max_items,
+        collections=args.collections,
+        datetime=args.datetime,
+        bbox=args.bbox,
+        cloud_cover_max=args.cloud_cover_max,
+        verbose=args.verbose,
+    ).dump_product_ids("/tmp/product_ids.json")
 
 
 if __name__ == "__main__":
