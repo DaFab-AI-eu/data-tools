@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "pydafab"
+version = "0.1.0"
+description = "Python package for data tools at DaFab EU project."
+authors = ["Metin Cakircali"]
+license = "Apache License 2.0"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+
+dependencies = ["pystac>1.12", "pydasi>0.0.6", "pystac-client>0.8"]
+
+reportMissingImports = true
+
+[tool.isort]
+profile = "black"
+line_length = 79
+multi_line_output = 3
+include_trailing_comma = true
+src_paths = ["src"]
+virtual_env = ".venv"
