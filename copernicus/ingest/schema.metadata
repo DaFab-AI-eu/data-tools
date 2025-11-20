@@ -1,0 +1,10 @@
+# Default types
+
+date:           Date;
+orbit:          Integer;
+gsd:            Integer;
+
+# stac items metadata
+[ source, collection, platform, instruments
+    [ procversion, gridcode, date
+        [ orbit, gsd ]]]
