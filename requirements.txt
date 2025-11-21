@@ -4,3 +4,4 @@ odc-algo==0.2.3
 odc-geo==0.4.8
 odc-stac==0.3.10
 odc-ui==0.2.1
+boto3==1.41.1
