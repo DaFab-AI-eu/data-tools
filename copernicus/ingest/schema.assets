@@ -1,0 +1,10 @@
+# Default types
+
+date:           Date;
+orbit:          Integer;
+gsd:            Integer;
+
+# stac items asset
+[ source, collection, platform, instruments
+    [ project, procversion, gridcode, date
+        [ orbit, gsd, band, mediatype ]]]

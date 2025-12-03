@@ -1,0 +1,7 @@
+---
+schema: /tools/copernicus/ingest/schema.assets
+catalogue: toc
+store: file
+spaces:
+  - roots:
+      - path: /data/assets/root
