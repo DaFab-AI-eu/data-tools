@@ -1,9 +1,8 @@
 [default]
-access_key = <access_key>
+aws_access_key_id = yourkey
+aws_secret_access_key = yoursecret
 host_base = eodata.dataspace.copernicus.eu
 host_bucket = eodata.dataspace.copernicus.eu
-human_readable_sizes = False
-secret_key = <secret_key>
+human_readable_sizes = true
 use_https = true
 check_ssl_certificate = true
-
