@@ -5,8 +5,9 @@ This module provides the CopernicusIngestor class for querying and retrieving pr
 
 """
 
-from datetime import datetime
-import sys
+from pydasi import Dasi
+
+from .errors import ProductNotFoundError, AssetNotFoundError
 
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
@@ -78,10 +79,12 @@ class CopernicusIngestor:
             if self.verbose:
                 print(f"Coordinates: {coordinates}")
         else:
-            sys.exit(
-                "Error: Invalid bbox[%s]! Expected format: 'min_lon,min_lat,max_lon,max_lat'"
-                % self.bbox,
+            raise ValueError(
+                f"Invalid bbox[{self.bbox}]! Expected format: 'min_lon,min_lat,max_lon,max_lat'"
             )
+            # sys.exit(
+            #     f"Error: Invalid bbox[{self.bbox}]! Expected format: 'min_lon,min_lat,max_lon,max_lat'"
+            # )
 
         aoi = {
             "type": "Polygon",
@@ -100,7 +103,7 @@ class CopernicusIngestor:
             "fields": {"exclude": ["geometry"]},
         }
 
-    def get_products(self):
+    def search_products(self):
         """
         Retrieve all Copernicus products matching the current search parameters
 
@@ -113,7 +116,7 @@ class CopernicusIngestor:
 
         return self.catalog.search(**params).items()
 
-    def get_product(self, product_id):
+    def find_product(self, product_id):
         """
         Retrieve a product item from the catalog by its product ID
 
@@ -125,42 +128,106 @@ class CopernicusIngestor:
 
         return next(self.catalog.get_items(product_id), None)
 
-    def retrieve(self, product_id):
+    def make_key_from_product(self, product) -> dict[str, str]:
         """
-        Retrieve a Copernicus STAC product and its metadata by product ID
+        Extract metadata key information from a Copernicus STAC product item
 
         :param self: The CopernicusIngestor instance
-        :param product_id: Unique identifier of the product to retrieve
-        :return: A list containing product metadata as a dictionary and the raw product data
+        :param product: The product item from which to extract metadata
+        :return: A dictionary containing extracted metadata key information
+        :rtype: dict[str, str]
         """
 
-        data = None
-        key: dict[str, str] = {}
+        key = {
+            "source": "copernicus_stac",
+            "collection": getattr(product, "collection_id", "unknown"),
+            "platform": product.properties["platform"],
+            "instruments": product.properties["instruments"][0],
+            "procversion": product.properties["processing:version"],
+            "gridcode": product.properties["grid:code"],
+            "orbit": product.properties["sat:relative_orbit"],
+            "date": product.properties["datetime"],
+            "gsd": product.properties["gsd"],
+        }
 
-        product = self.get_product(product_id)
+        return key
 
-        if product is not None:
-            from urllib.request import urlopen
+    def fetch_product(self, product):
+        """
+        Fetch a Copernicus product by ID and return its metadata key and raw data
 
-            # get the STAC product's link
-            href = next(link.href for link in product.links if link.rel == "self")
+        :param self: The CopernicusIngestor instance
+        :param product_id: Unique identifier of the product to fetch
+        :return: A tuple containing the metadata key dictionary and the raw product data
+        :rtype: tuple[dict[str, str], _UrlopenRet]
+        :raises: ProductNotFoundError if the product is not found
+        """
 
-            with urlopen(href) as response:
-                data = response.read()
+        if self.verbose:
+            print(f"Fetching product: {product.id}")
 
-            key = {
-                "source": "copernicus_stac",
-                "collection": getattr(product, "collection_id", "unknown"),
-                "platform": product.properties["platform"],
-                "instruments": product.properties["instruments"][0],
-                "procversion": product.properties["processing:version"],
-                "gridcode": product.properties["grid:code"],
-                "orbit": product.properties["sat:relative_orbit"],
-                "date": product.properties["datetime"],
-                "gsd": product.properties["gsd"],
-            }
+        if product is None:
+            raise ProductNotFoundError
 
-        return [key, data]
+        from urllib.request import urlopen
+
+        with urlopen(product.self_href) as response:
+            data = response.read()
+
+        if self.verbose:
+            print(f"Fetched product: {product.id}, size: {len(data)} bytes")
+
+        # make dasi key from product
+        key = self.make_key_from_product(product)
+        return key, data
+
+    def fetch_s3(self, href):
+        import boto3
+
+        s3 = boto3.resource(
+            "s3", endpoint_url="https://eodata.dataspace.copernicus.eu")
+        bucket, key = href.lstrip("s3://").split("/", 1)
+        response = s3.Object(bucket, key).get()
+        return response["Body"].read()
+
+    def fetch_asset(self, product, asset_key):
+        """
+        Retrieve specific assets from a Copernicus STAC product
+        :param self: The CopernicusIngestor instance
+        :param product: The Copernicus STAC product
+        :param assets: List of asset keys to retrieve from the product
+        :return: A tuple containing the metadata key dictionary and the raw asset data
+        :rtype: tuple[dict[str, str], bytes | None]
+        """
+
+        if product is None:
+            raise ProductNotFoundError
+
+        if asset_key not in product.assets:
+            raise AssetNotFoundError
+
+        if self.verbose:
+            print(f"Fetching asset: {asset_key} from product: {product.id}")
+
+        asset = product.assets[asset_key]
+
+        # Make key from product and asset
+        key = self.make_key_from_product(product)
+        key["band"] = asset_key
+        key["mediatype"] = getattr(
+            asset, "media_type", "unknown").replace("/", "_")
+        key["project"] = getattr(asset.ext.proj, "code", "unknown")
+
+        data = self.fetch_s3(asset.href)
+
+        if self.verbose:
+            print(
+                f"Fetched asset: {asset_key} "
+                f"from product: {product.id}, "
+                f"size: {len(data)} bytes"
+            )
+
+        return key, data
 
     def dump_product_ids(self, target_file):
         """
@@ -175,7 +242,7 @@ class CopernicusIngestor:
         product_ids = []
 
         # Collect product IDs
-        for product in self.get_products():
+        for product in self.search_products():
             product_ids.append(product.id)
 
         # Save product IDs to a JSON file

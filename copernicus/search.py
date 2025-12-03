@@ -58,6 +58,12 @@ def _parse_arguments():
         help="Maximum cloud cover percentage. default: 100.0",
         default=100.0,
     )
+    arg_parses.add_argument(
+        "--output_file",
+        type=str,
+        help="Path to the output file (json format).",
+        default="/tmp/product_ids.json",
+    )
 
     argparse.Namespace(verbose=False)
 
@@ -76,7 +82,7 @@ def main():
         bbox=args.bbox,
         cloud_cover_max=args.cloud_cover_max,
         verbose=args.verbose,
-    ).dump_product_ids("/tmp/product_ids.json")
+    ).dump_product_ids(args.output_file)
 
 
 if __name__ == "__main__":
