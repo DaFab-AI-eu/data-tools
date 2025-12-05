@@ -8,6 +8,7 @@ Example usage:
 """
 
 import argparse
+from json import dump
 
 from pydafab import CopernicusIngestor
 
@@ -18,7 +19,7 @@ __author__ = "Metin Cakircali"
 __email__ = "metin.cakircali@ecmwf.int"
 
 
-def _parse_arguments():
+def parse_arguments():
     """Parse command line arguments for searching Copernicus STAC."""
 
     arg_parses = argparse.ArgumentParser("search_copernicus_stac")
@@ -73,16 +74,25 @@ def _parse_arguments():
 def main():
     """Main function to search Copernicus STAC and dump product IDs."""
 
-    args = _parse_arguments()
+    args = parse_arguments()
 
-    CopernicusIngestor(
-        max_items=args.max_items,
-        collections=args.collections,
-        datetime=args.datetime,
-        bbox=args.bbox,
-        cloud_cover_max=args.cloud_cover_max,
-        verbose=args.verbose,
-    ).dump_product_ids(args.output_file)
+    params = {
+        "max_items": args.max_items,
+        "collections": args.collections,
+        "datetime": args.datetime,
+        "bbox": args.bbox,
+        "cloud_cover_max": args.cloud_cover_max
+    }
+
+    product_ids = []
+
+    # Collect product IDs
+    for product in CopernicusIngestor(verbose=args.verbose).search(params):
+        product_ids.append(product.id)
+
+    # Save product IDs to a JSON file
+    with open(args.output_file, mode="w") as f:
+        dump(product_ids, f, indent=2)
 
 
 if __name__ == "__main__":

@@ -8,12 +8,7 @@ Example usage:
 import argparse
 import sys
 
-import warnings
-
-from pydafab.errors import AssetNotFoundError, ProductNotFoundError
-from pydasi import Dasi
-
-from pydafab import CopernicusIngestor
+from pydafab import CopernicusIngestor, IngestTool
 
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
@@ -45,55 +40,6 @@ def parse_arguments():
     return arg_parser.parse_args()
 
 
-class ArchiveTool():
-
-    def __init__(self, ingestor):
-        self.__ingestor = ingestor
-        self.__verbose = ingestor.verbose
-
-    def archive_product(self, product):
-        """Ingest product from Copernicus STAC and archive using Dasi."""
-
-        if self.__verbose:
-            print(f"Archiving product: {product.id}")
-
-        try:
-            key, data = self.__ingestor.fetch_product(product)
-        except ProductNotFoundError:
-            sys.exit(f"Product [{product.id}] not found!")
-
-        dasi = Dasi("/tools/copernicus/ingest/metadata.yml")
-        # dasi.archive(key, data)
-
-        print(f"Archiving product: {product.id}\nkey: {key}")
-
-        if self.__verbose:
-            print(f"Finished archiving product: {product.id}")
-
-    def archive_assets(self, product, asset_keys):
-        """Given product, archive assets from Copernicus S3 using Dasi."""
-
-        if self.__verbose:
-            print(f"Archiving assets of product: {product.id}")
-
-        dasi = Dasi("/tools/copernicus/ingest/assets.yml")
-
-        for asset_key in asset_keys:
-            try:
-                key, data = self.__ingestor.fetch_asset(product, asset_key)
-            except AssetNotFoundError:
-                warnings.warn(
-                    f"Asset [{asset_key}] not found in product [{product.id}]!"
-                )
-                continue
-
-            print(f"Archiving key: {key} of product: {product.id}")
-            dasi.archive(key, data)
-
-        if self.__verbose:
-            print(f"Finished archiving assets of product: {product.id}")
-
-
 def main():
     """Ingest product from Copernicus STAC and archive using Dasi."""
 
@@ -101,13 +47,16 @@ def main():
 
     ingestor = CopernicusIngestor(verbose=args.verbose)
 
-    product = ingestor.find_product(args.product_id)
+    product = ingestor.search_product(args.product_id)
 
-    archiver = ArchiveTool(ingestor)
+    if product is None:
+        sys.exit(f"Product [{args.product_id}] not found!")
 
-    archiver.archive_product(product)
+    tool = IngestTool(ingestor)
 
-    archiver.archive_assets(product, args.assets.split(","))
+    tool.archive_product(product)
+
+    tool.archive_assets(product, args.assets.split(","))
 
 
 if __name__ == "__main__":

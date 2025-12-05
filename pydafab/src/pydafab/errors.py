@@ -1,3 +1,5 @@
+"""Custom exceptions for PyDaFab."""
+
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
 __version__ = "0.0.1"
