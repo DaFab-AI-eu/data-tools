@@ -81,7 +81,7 @@ def main():
         "collections": args.collections,
         "datetime": args.datetime,
         "bbox": args.bbox,
-        "cloud_cover_max": args.cloud_cover_max
+        "cloud_cover_max": args.cloud_cover_max,
     }
 
     product_ids = []
@@ -89,6 +89,8 @@ def main():
     # Collect product IDs
     for product in CopernicusIngestor(verbose=args.verbose).search(params):
         product_ids.append(product.id)
+        if args.verbose:
+            print(f"Found product ID: {product.id}")
 
     # Save product IDs to a JSON file
     with open(args.output_file, mode="w") as f:
