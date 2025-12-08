@@ -1,0 +1,154 @@
+"""
+STAC Ingestor
+
+This module provides the base class for retrieving products and their assets from a STAC API.
+
+"""
+
+import logging
+
+from typing import Any
+from pystac import Asset, Item
+from pystac_client import Client
+
+from .errors import ProductNotFoundError, AssetNotFoundError
+
+__copyright__ = "Copyright 2025, ECMWF"
+__license__ = "Apache License Version 2.0"
+__version__ = "0.0.1"
+__author__ = "Metin Cakircali"
+__email__ = "metin.cakircali@ecmwf.int"
+
+
+class StacIngestor:
+    """
+    Base class for data ingestion functionality
+    """
+
+    def __init__(self, stac_catalog, verbose):
+        self.catalog = Client.open(url=stac_catalog)
+        self.verbose = verbose
+
+    def __repr__(self) -> str:
+        return f"<StacIngestor:verbose={self.verbose}>"
+
+    def __fetch_s3(self, endpoint, href):
+        import boto3
+
+        if self.verbose:
+            print(f"Fetching S3 object from {href} using endpoint {endpoint}")
+
+        try:
+            s3 = boto3.resource("s3", endpoint_url=endpoint)
+            bucket, key = href.lstrip("s3://").split("/", 1)
+            response = s3.Object(bucket, key).get()["Body"]
+            return response.read()
+        except Exception as e:
+            logging.warning(f"Failed to fetch S3 object from {href}: {e}")
+
+        return None
+
+    def _fix_key(self, key: dict[str, str]):
+        for fix in [("/", "_"), (":", "_")]:
+            for k, v in key.items():
+                key[k] = str(v).replace(*fix)
+        return key
+
+    def make_key_from_product(self, product: Item) -> dict[str, str]:
+        raise NotImplementedError
+
+    def make_asset_key_from_product(self, product: Item, asset: Asset) -> dict[str, str]:
+        raise NotImplementedError
+
+    def search(self, params):
+        """
+        Search products matching the provided parameters
+
+        :param self: The StacIngestor instance
+        :return: An iterator over matching product items
+        :rtype: Iterator[Item]
+        """
+
+        return self.catalog.search(**params).items()
+
+    def search_product(self, product_id):
+        """
+        Retrieve a product from the catalog by its product ID
+
+        :param self: The StacIngestor instance
+        :param product_id: Unique identifier of the product to retrieve
+        :return: The product if found, otherwise None
+        :rtype: Item | None
+        """
+
+        if self.verbose:
+            print(f"Finding product with ID: {product_id}")
+
+        return next(self.catalog.get_items(product_id), None)
+
+    def fetch_product(self, product: Item) -> tuple[dict[str, str], Any]:
+        """
+        Fetch a product and return its metadata key and data content
+
+        :param self: The StacIngestor instance
+        :param product: The product item to fetch
+        :return: A tuple containing the product metadata key and the downloaded data
+        :rtype: tuple[dict[str, str], _UrlopenRet]
+        """
+
+        if self.verbose:
+            print(f"Fetching product: {product.id}")
+
+        if product is None:
+            raise ProductNotFoundError
+
+        from urllib.request import urlopen
+
+        with urlopen(product.self_href) as response:
+            data = response.read()
+
+        if self.verbose:
+            print(f"Fetched product: {product.id}, size: {len(data)} bytes")
+
+        key = self.make_key_from_product(product)
+
+        print(f"AAAAAAAAAAAA {key}")
+
+        return key, data
+
+    def fetch_asset(self, product: Item, asset_key: str) -> tuple[dict[str, str], Any]:
+        """
+        Fetch a specific asset from a product and return its metadata key and data
+
+        :param self: The CopernicusIngestor instance
+        :param product: The product item containing the asset
+        :param asset_key: The key identifying the asset to fetch
+        :return: A tuple with the asset metadata key dictionary and the asset data
+        :rtype: tuple[dict[str, str], Any]
+        """
+
+        if product is None:
+            raise ProductNotFoundError
+
+        if asset_key not in product.assets:
+            raise AssetNotFoundError
+
+        if self.verbose:
+            print(f"Fetching asset: {asset_key} from product: {product.id}")
+
+        asset = product.assets[asset_key]
+
+        # Make key from product and asset
+        key = self.make_asset_key_from_product(product, asset)
+
+        # S3 endpoint, todo: remove
+        endpoint = product.properties["storage:schemes"]["cdse-s3"]["platform"]
+
+        data = self.__fetch_s3(endpoint, asset.href)
+
+        if data is None:
+            raise AssetNotFoundError
+        elif self.verbose:
+            print(f"Fetched asset: {asset_key} from product: {product.id}, size: {len(data)} bytes")
+
+        return key, data
