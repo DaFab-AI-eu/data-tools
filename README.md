@@ -40,9 +40,11 @@ ingest_tool = IngestTool(ingestor)
 
 # Define search parameters
 search_params = {
-    "collection": "sentinel-2-l1c",
-    "datetime": "2023-01-01/2023-01-31",
-    "bbox": [12.0, 41.0, 13.0, 42.0],
+    "max_items": 10,
+    "collections": "sentinel-2-l2a",
+    "bbox": [6.95, 50.65, 7.25, 50.85],
+    "datetime": "2025-01-21/2025-01-23",
+    "cloud_cover_max": 100,
 }
 
 # Search for products
