@@ -124,9 +124,7 @@ class CopernicusIngestor(StacIngestor):
         key["takedate"] = dt.strftime("%Y-%m-%d")
         key["taketime"] = dt.strftime("%H%M%S")
 
-        key = super()._fix_key(key)
-
-        return key
+        return super()._fix_key(key)
 
     def make_asset_key_from_product(self, product: Item, asset: Asset) -> dict[str, str]:
         """
@@ -147,6 +145,4 @@ class CopernicusIngestor(StacIngestor):
         key["project"] = getattr(asset.ext.proj, "code", "null")
         key["mediatype"] = getattr(asset, "media_type", "null")
 
-        key = super()._fix_key(key)
-
-        return key
+        return super()._fix_key(key)
