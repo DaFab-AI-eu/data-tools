@@ -137,11 +137,7 @@ class StacIngestor:
 
         asset = product.assets[asset_key]
 
-        # Make key from product and asset
         key = self.make_asset_key_from_product(product, asset)
-
-        # S3 endpoint, todo: remove
-        # endpoint = product.properties["storage:schemes"]["cdse-s3"]["platform"]
 
         data = self.__fetch_s3(asset.href)
 
