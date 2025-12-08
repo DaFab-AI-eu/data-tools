@@ -63,7 +63,7 @@ def parse_arguments():
         "--output_file",
         type=str,
         help="Path to the output file (json format).",
-        default="/tmp/product_ids.json",
+        default="/tmp/products.json",
     )
 
     argparse.Namespace(verbose=False)
@@ -84,17 +84,16 @@ def main():
         "cloud_cover_max": args.cloud_cover_max,
     }
 
-    product_ids = []
+    products = []
 
-    # Collect product IDs
     for product in CopernicusIngestor(verbose=args.verbose).search(params):
-        product_ids.append(product.id)
+        products.append(product.id)
         if args.verbose:
             print(f"Found product ID: {product.id}")
 
-    # Save product IDs to a JSON file
+    # Save found products to a JSON file
     with open(args.output_file, mode="w") as f:
-        dump(product_ids, f, indent=2)
+        dump(products, f, indent=2)
 
 
 if __name__ == "__main__":
