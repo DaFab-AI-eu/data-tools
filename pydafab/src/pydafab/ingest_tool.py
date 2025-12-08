@@ -33,19 +33,18 @@ class IngestTool:
         :param product: Product object to be archived
         """
 
-        if self.__verbose:
-            print(f"Archiving product: {product.id}")
-
         try:
             key, data = self.__ingestor.fetch_product(product)
         except ProductNotFoundError:
             sys.exit(f"Product [{product.id}] not found!")
 
+        if self.__verbose:
+            print(f"Archiving product: {product.id} with key: {key}")
+
         dasi = Dasi("/tools/copernicus/ingest/metadata.yml")
         dasi.archive(key, data)
 
-        if self.__verbose:
-            print(f"Finished archiving product: {product.id}")
+        logging.info(f"Archived product: {product.id}")
 
     def archive_assets(self, product, asset_keys):
         """
@@ -57,7 +56,7 @@ class IngestTool:
         """
 
         if self.__verbose:
-            print(f"Archiving assets of product: {product.id}")
+            print(f"Archiving assets of product: {product.id} with keys: {asset_keys}")
 
         if product is None:
             sys.exit(f"Product [{product.id}] not found!")
@@ -70,7 +69,10 @@ class IngestTool:
             except AssetNotFoundError:
                 logging.warning(f"Asset [{asset_key}] not found in product [{product.id}]!")
                 continue
+            if self.__verbose:
+                print(f"Archiving asset: {asset_key} with key: {key}")
             dasi.archive(key, data)
+            logging.info(f"Archived asset: {asset_key}")
 
         if self.__verbose:
             print(f"Finished archiving assets of product: {product.id}")
