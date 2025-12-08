@@ -59,6 +59,9 @@ class IngestTool:
         if self.__verbose:
             print(f"Archiving assets of product: {product.id}")
 
+        if product is None:
+            sys.exit(f"Product [{product.id}] not found!")
+
         dasi = Dasi("/tools/copernicus/ingest/assets.yml")
 
         for asset_key in asset_keys:
