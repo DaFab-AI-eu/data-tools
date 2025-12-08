@@ -117,9 +117,11 @@ class CopernicusIngestor(StacIngestor):
             "orbit": product.properties["sat:relative_orbit"],
         }
 
+        # Processing date and time format: YYYYMMDDTHHMMSS
         dt = datetime.fromisoformat(product.properties["processing:datetime"])
         key["procdate"] = dt.strftime("%Y%m%dT%H%M%S")
 
+        # Acquisition date and time format: YYYY-MM-DD and HHMMSS
         dt = datetime.fromisoformat(product.properties["datetime"])
         key["takedate"] = dt.strftime("%Y-%m-%d")
         key["taketime"] = dt.strftime("%H%M%S")
