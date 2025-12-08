@@ -26,7 +26,12 @@ class IngestTool:
         self.__verbose = ingestor.verbose
 
     def archive_product(self, product):
-        """Ingest product from Copernicus STAC and archive using Dasi."""
+        """
+        Archive a product using the ingestor and Dasi metadata tool
+
+        :param self: Instance of IngestTool
+        :param product: Product object to be archived
+        """
 
         if self.__verbose:
             print(f"Archiving product: {product.id}")
@@ -43,7 +48,13 @@ class IngestTool:
             print(f"Finished archiving product: {product.id}")
 
     def archive_assets(self, product, asset_keys):
-        """Given product, archive assets from Copernicus S3 using Dasi."""
+        """
+        Archive specified assets of a product using Dasi
+
+        :param self: Instance of IngestTool
+        :param product: Product whose assets will be archived
+        :param asset_keys: List of asset keys to archive
+        """
 
         if self.__verbose:
             print(f"Archiving assets of product: {product.id}")

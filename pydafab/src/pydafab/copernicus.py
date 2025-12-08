@@ -6,7 +6,6 @@ This module provides the CopernicusIngestor class for querying and retrieving pr
 """
 
 from datetime import datetime
-from math import prod
 from .ingestor import StacIngestor, Asset, Item
 
 __copyright__ = "Copyright 2025, ECMWF"
@@ -87,6 +86,14 @@ class CopernicusIngestor(StacIngestor):
         }
 
     def search(self, params):
+        """
+        Search products matching the provided parameters
+
+        :param self: The CopernicusIngestor instance
+        :param params: Dictionary of search parameters
+        :return: An iterator over matching product items
+        :rtype: Iterator[Item]
+        """
         search_params = self.__make_search_params(params)
         return super().search(search_params)
 
@@ -122,6 +129,17 @@ class CopernicusIngestor(StacIngestor):
         return key
 
     def make_asset_key_from_product(self, product: Item, asset: Asset) -> dict[str, str]:
+        """
+        Generate a metadata key dictionary for a Copernicus product asset, combining product and asset details
+
+        :param self: The CopernicusIngestor instance
+        :param product: The product item to extract metadata from
+        :type product: Item
+        :param asset: The asset whose metadata will be included
+        :type asset: Asset
+        :return: Dictionary containing combined product and asset metadata keys
+        :rtype: dict[str, str]
+        """
 
         key = self.make_key_from_product(product)
 
