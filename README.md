@@ -30,8 +30,7 @@ $ cd pydafab
 Here's a simple example of how to use `pydafab` to search for and archive products from the Copernicus Data Space:
 
 ```python
-from pydafab.copernicus import CopernicusIngestor
-from pydafab.ingest_tool import IngestTool
+from pydafab import CopernicusIngestor, IngestTool
 
 # Create an instance of the CopernicusIngestor
 ingestor = CopernicusIngestor()
