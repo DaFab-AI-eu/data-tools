@@ -25,21 +25,22 @@ class StacIngestor:
     Base class for data ingestion functionality
     """
 
-    def __init__(self, stac_catalog, verbose):
+    def __init__(self, stac_catalog, s3_endpoint, verbose):
         self.catalog = Client.open(url=stac_catalog)
+        self.endpoint = s3_endpoint
         self.verbose = verbose
 
     def __repr__(self) -> str:
         return f"<StacIngestor:verbose={self.verbose}>"
 
-    def __fetch_s3(self, endpoint, href):
+    def __fetch_s3(self, href):
         import boto3
 
         if self.verbose:
-            print(f"Fetching S3 object from {href} using endpoint {endpoint}")
+            print(f"Fetching S3 object from {href} using endpoint {self.endpoint}")
 
         try:
-            s3 = boto3.resource("s3", endpoint_url=endpoint)
+            s3 = boto3.resource(service_name="s3", endpoint_url=self.endpoint)
             bucket, key = href.lstrip("s3://").split("/", 1)
             response = s3.Object(bucket, key).get()["Body"]
             return response.read()
@@ -112,8 +113,6 @@ class StacIngestor:
 
         key = self.make_key_from_product(product)
 
-        print(f"AAAAAAAAAAAA {key}")
-
         return key, data
 
     def fetch_asset(self, product: Item, asset_key: str) -> tuple[dict[str, str], Any]:
@@ -142,9 +141,9 @@ class StacIngestor:
         key = self.make_asset_key_from_product(product, asset)
 
         # S3 endpoint, todo: remove
-        endpoint = product.properties["storage:schemes"]["cdse-s3"]["platform"]
+        # endpoint = product.properties["storage:schemes"]["cdse-s3"]["platform"]
 
-        data = self.__fetch_s3(endpoint, asset.href)
+        data = self.__fetch_s3(asset.href)
 
         if data is None:
             raise AssetNotFoundError

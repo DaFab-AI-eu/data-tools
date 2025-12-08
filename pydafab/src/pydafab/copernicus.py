@@ -25,9 +25,10 @@ class CopernicusIngestor(StacIngestor):
     def __init__(
         self,
         stac_catalog="https://stac.dataspace.copernicus.eu/v1",
+        s3_endpoint="https://eodata.dataspace.copernicus.eu",
         verbose=False,
     ):
-        super().__init__(stac_catalog=stac_catalog, verbose=verbose)
+        super().__init__(stac_catalog=stac_catalog, s3_endpoint=s3_endpoint, verbose=verbose)
 
         self.catalog.add_conforms_to("ITEM_SEARCH")
 
@@ -106,9 +107,7 @@ class CopernicusIngestor(StacIngestor):
             "instruments": product.properties["instruments"][0],
             "procver": product.properties["processing:version"],
             "gridcode": product.properties["grid:code"],
-            # "date": product.properties["datetime"],
             "orbit": product.properties["sat:relative_orbit"],
-            # "procdate": product.properties["processing:datetime"],
         }
 
         dt = datetime.fromisoformat(product.properties["processing:datetime"])
