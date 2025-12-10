@@ -26,7 +26,7 @@ class StacIngestor:
     """
 
     def __init__(self, stac_catalog, s3_endpoint, verbose):
-        self.catalog = Client.open(url=stac_catalog)
+        self.catalog = Client.open(url=stac_catalog, timeout=5)
         self.endpoint = s3_endpoint
         self.verbose = verbose
 
