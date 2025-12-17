@@ -8,6 +8,7 @@ Example usage:
 """
 
 import argparse
+import logging
 from json import dump
 
 from pydafab import CopernicusIngestor
@@ -75,6 +76,9 @@ def main():
     """Main function to search Copernicus STAC and dump product IDs."""
 
     args = parse_arguments()
+    
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG, format='%(name)s - %(levelname)s - %(message)s')
 
     params = {
         "max_items": args.max_items,

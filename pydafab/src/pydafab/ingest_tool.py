@@ -12,6 +12,8 @@ from pydasi import Dasi
 from .copernicus import StacIngestor
 from .errors import AssetNotFoundError, ProductNotFoundError
 
+logger = logging.getLogger(__name__)
+
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
 __version__ = "0.0.1"
@@ -24,6 +26,9 @@ class IngestTool:
     def __init__(self, ingestor: StacIngestor):
         self.__ingestor = ingestor
         self.__verbose = ingestor.verbose
+        
+        if self.__verbose:
+            logger.setLevel(logging.DEBUG)
 
     def archive_product(self, product):
         """
@@ -38,13 +43,12 @@ class IngestTool:
         except ProductNotFoundError:
             sys.exit(f"Product [{product.id}] not found!")
 
-        if self.__verbose:
-            print(f"Archiving product: {product.id} with key: {key}")
+        logger.debug(f"Archiving product: {product.id} with key: {key}")
 
         dasi = Dasi("/tools/copernicus/ingest/metadata.yml")
         dasi.archive(key, data)
 
-        logging.info(f"Archived product: {product.id}")
+        logger.info(f"Archived product: {product.id}")
 
     def archive_assets(self, product, asset_keys):
         """
@@ -55,8 +59,7 @@ class IngestTool:
         :param asset_keys: List of asset keys to archive
         """
 
-        if self.__verbose:
-            print(f"Archiving assets of product: {product.id} with keys: {asset_keys}")
+        logger.debug(f"Archiving assets of product: {product.id} with keys: {asset_keys}")
 
         if product is None:
             sys.exit(f"Product [{product.id}] not found!")
@@ -67,12 +70,10 @@ class IngestTool:
             try:
                 key, data = self.__ingestor.fetch_asset(product, asset_key)
             except AssetNotFoundError:
-                logging.warning(f"Asset [{asset_key}] not found in product [{product.id}]!")
+                logger.warning(f"Asset [{asset_key}] not found in product [{product.id}]!")
                 continue
-            if self.__verbose:
-                print(f"Archiving asset: {asset_key} with key: {key}")
+            logger.debug(f"Archiving asset: {asset_key} with key: {key}")
             dasi.archive(key, data)
-            logging.info(f"Archived asset: {asset_key}")
+            logger.info(f"Archived asset: {asset_key}")
 
-        if self.__verbose:
-            print(f"Finished archiving assets of product: {product.id}")
+        logger.debug(f"Finished archiving assets of product: {product.id}")
