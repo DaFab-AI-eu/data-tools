@@ -5,8 +5,13 @@ This module provides the CopernicusIngestor class for querying and retrieving pr
 
 """
 
+import logging
 from datetime import datetime
+from typing import Any, Iterator
+
 from .ingestor import StacIngestor, Asset, Item
+
+logger = logging.getLogger(__name__)
 
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
@@ -23,32 +28,35 @@ class CopernicusIngestor(StacIngestor):
 
     def __init__(
         self,
-        stac_catalog="https://stac.dataspace.copernicus.eu/v1",
-        s3_endpoint="https://eodata.dataspace.copernicus.eu",
-        verbose=False,
-    ):
+        stac_catalog: str = "https://stac.dataspace.copernicus.eu/v1",
+        s3_endpoint: str = "https://eodata.dataspace.copernicus.eu",
+        verbose: bool = False,
+    ) -> None:
         super().__init__(stac_catalog=stac_catalog, s3_endpoint=s3_endpoint, verbose=verbose)
+        
+        if self.verbose:
+            logger.setLevel(logging.DEBUG)
 
         self.catalog.add_conforms_to("ITEM_SEARCH")
 
     def __repr__(self) -> str:
         return f"<CopernicusIngestor:catalog={self.catalog.id},verbose={self.verbose}>"
 
-    def __make_search_params(self, params):
+    def __make_search_params(self, params: dict[str, Any]) -> dict[str, Any]:
         """
         Build search parameters for querying Copernicus STAC API based on instance attributes
 
-        :param self: The CopernicusIngestor instance containing search criteria
+        :param self: The CopernicusIngestor instance
+        :param params: Dictionary containing search criteria
         :return: Dictionary of search parameters for the STAC API
         :rtype: dict[str, Any]
         """
 
-        if self.verbose:
-            print(f"Max items: {params['max_items']}")
-            print(f"Collections: {params['collections']}")
-            print(f"Datetime: {params['datetime']}")
-            print(f"Bounding Box: {params['bbox']}")
-            print(f"Cloud cover max: {params['cloud_cover_max']}")
+        logger.debug(f"Max items: {params['max_items']}")
+        logger.debug(f"Collections: {params['collections']}")
+        logger.debug(f"Datetime: {params['datetime']}")
+        logger.debug(f"Bounding Box: {params['bbox']}")
+        logger.debug(f"Cloud cover max: {params['cloud_cover_max']}")
 
         bbox = params["bbox"].split(",")
         if len(bbox) == 4:
@@ -60,8 +68,7 @@ class CopernicusIngestor(StacIngestor):
                 [max_lon, min_lat],
                 [min_lon, min_lat],
             ]
-            if self.verbose:
-                print(f"Coordinates: {coordinates}")
+            logger.debug(f"Coordinates: {coordinates}")
         else:
             raise ValueError(f"Invalid bbox[{params['bbox']}]! Expected format: 'min_lon,min_lat,max_lon,max_lat'")
             # sys.exit(
@@ -85,7 +92,7 @@ class CopernicusIngestor(StacIngestor):
             "fields": {"exclude": ["geometry"]},
         }
 
-    def search(self, params):
+    def search(self, params: dict[str, Any]) -> Iterator[Item]:
         """
         Search products matching the provided parameters
 

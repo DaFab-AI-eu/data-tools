@@ -6,6 +6,7 @@ Example usage:
 """
 
 import argparse
+import logging
 import sys
 
 from pydafab import CopernicusIngestor, IngestTool
@@ -44,6 +45,9 @@ def main():
     """Ingest product from Copernicus STAC and archive using Dasi."""
 
     args = parse_arguments()
+    
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG, format='%(name)s - %(levelname)s - %(message)s')
 
     ingestor = CopernicusIngestor(verbose=args.verbose)
 
