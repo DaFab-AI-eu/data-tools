@@ -45,6 +45,7 @@ class IngestTool:
 
         logger.debug(f"Archiving product: {product.id} with key: {key}")
 
+        # TODO: Make the path to the Dasi config file configurable
         dasi = Dasi("/tools/copernicus/ingest/metadata.yml")
         dasi.archive(key, data)
 

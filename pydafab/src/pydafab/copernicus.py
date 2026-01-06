@@ -94,7 +94,7 @@ class CopernicusIngestor(StacIngestor):
 
     def search(self, params: dict[str, Any]) -> Iterator[Item]:
         """
-        Search products matching the provided parameters
+        Search products matching the provided parameters.
 
         :param self: The CopernicusIngestor instance
         :param params: Dictionary of search parameters
@@ -106,7 +106,7 @@ class CopernicusIngestor(StacIngestor):
 
     def make_key_from_product(self, product: Item) -> dict[str, str]:
         """
-        Extract metadata key information from a Copernicus STAC product item
+        Extract metadata key information from a Copernicus STAC product item.
 
         :param self: The CopernicusIngestor instance
         :param product: The product item from which to extract metadata
@@ -137,7 +137,7 @@ class CopernicusIngestor(StacIngestor):
 
     def make_asset_key_from_product(self, product: Item, asset: Asset) -> dict[str, str]:
         """
-        Generate a metadata key dictionary for a Copernicus product asset, combining product and asset details
+        Generate a metadata key dictionary for a Copernicus product asset, combining product and asset details.
 
         :param self: The CopernicusIngestor instance
         :param product: The product item to extract metadata from

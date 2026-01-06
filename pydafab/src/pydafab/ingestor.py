@@ -24,7 +24,7 @@ __email__ = "metin.cakircali@ecmwf.int"
 
 class StacIngestor:
     """
-    Base class for data ingestion functionality
+    Base class for data ingestion functionality.
     """
 
     def __init__(self, stac_catalog: str, s3_endpoint: str, verbose: bool = False) -> None:
