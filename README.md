@@ -26,6 +26,44 @@ $ cd pydafab
     $ pip install pydafab
     ```
 
+## Configuration
+
+Requires Copernicus credentials via environment variables.
+
+**Local Development:** 
+
+Edit dev.env with your credentials
+
+*vscode devcontainer is configured to use dev.env*
+
+**Argo Workflows:**
+
+create the secret:
+```bash
+kubectl create secret generic copernicus-creds \
+  --from-literal=access-key=your_access_key \
+  --from-literal=secret-key=your_secret_key
+```
+
+reference it in the workflow:
+```yaml
+templates:
+- name: ingest
+  container:
+    image: your-registry/data-tools:latest
+    env:
+    - name: AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: copernicus-creds
+          key: access-key
+    - name: AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: copernicus-creds
+          key: secret-key
+```
+
 ## Usage
 Here's a simple example of how to use `pydafab` to search for and archive products from the Copernicus Data Space:
 

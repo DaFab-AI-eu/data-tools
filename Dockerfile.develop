@@ -2,10 +2,12 @@ FROM dasi:latest
 
 USER root
 
-COPY requirements.txt /tmp/requirements.txt
+WORKDIR /tmp
 
-COPY eodata-s3.creds /root/.aws/credentials
+COPY requirements.txt .
 
-RUN python -m pip install -q --no-cache-dir -r /tmp/requirements.txt
+RUN python -m pip install -q --no-cache-dir -r ./requirements.txt
 
 WORKDIR /tools
+
+COPY .env.develop .env
