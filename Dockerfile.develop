@@ -9,5 +9,3 @@ COPY requirements.txt .
 RUN python -m pip install -q --no-cache-dir -r ./requirements.txt
 
 WORKDIR /tools
-
-COPY .env.develop .env
