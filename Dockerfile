@@ -4,8 +4,8 @@ USER root
 
 WORKDIR /tmp
 
-COPY requirements.txt .
-COPY pydafab .
+COPY requirements.txt ./requirements.txt
+COPY pydafab ./pydafab
 
 RUN set -ex; \
     python -m pip install -q --no-cache-dir -r ./requirements.txt && \

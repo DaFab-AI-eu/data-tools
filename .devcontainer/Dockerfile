@@ -4,7 +4,7 @@ USER root
 
 WORKDIR /tmp
 
-COPY requirements.txt .
+COPY ./requirements.txt ./requirements.txt
 
 RUN python -m pip install -q --no-cache-dir -r ./requirements.txt
 

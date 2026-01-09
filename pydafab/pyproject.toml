@@ -6,14 +6,18 @@ authors = ["Metin Cakircali"]
 license = "Apache License 2.0"
 readme = "README.md"
 
+
 [tool.poetry.dependencies]
 python = "^3.11"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-dependencies = ["pystac>1.12", "pydasi>0.0.6", "pystac-client>0.8"]
+dependencies = ["pydasi>0.0.5", "pystac>1.12", "pystac-client>0.8", "boto3>1.41"]
 
 reportMissingImports = true
 
@@ -27,3 +31,9 @@ virtual_env = ".venv"
 [tool.black]
 line-length = 120
 skip-string-normalization = true
+
+[tool.pytest.ini_options]
+log_cli = true
+log_cli_level = "DEBUG"
+log_cli_format = "%(asctime)s [%(levelname)8s] %(message)s (%(filename)s:%(lineno)s)"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"

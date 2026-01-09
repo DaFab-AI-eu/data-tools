@@ -6,7 +6,7 @@ services:
         
         build:
             context: .
-            dockerfile: Dockerfile.develop
+            dockerfile: Dockerfile
 
         env_file: dev.env
 
@@ -32,6 +32,19 @@ services:
 
         stdin_open: true
         tty: true
+
+    test:
+        profiles: 
+            - test
+        build:
+            context: .
+            dockerfile: Dockerfile
+        env_file: dev.env
+        volumes:
+            - /mnt/dasi/tools:/tools:cached
+            - metadata:/data/metadata/root
+            - assets:/data/assets/root
+        command: make -C /tools/pydafab test
 
 volumes:
   metadata:
