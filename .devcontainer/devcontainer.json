@@ -1,29 +1,36 @@
 {
-	"name": "Data Tools",
-	// The .devcontainer/docker-compose.yml file contains any overrides you need/want to make.
-	"dockerComposeFile": [
-		"../docker-compose.yml"
-	],
-	// The 'service' property is the name of the service for the container that VS Code should
-	// use. Update this value and .devcontainer/docker-compose.yml to the real service name.
-	"service": "data-tools",
-	// The optional 'workspaceFolder' property is the path VS Code should open by default when
-	// connected. This is typically a file mount in .devcontainer/docker-compose.yml
-	"workspaceFolder": "/tools",
-	// install pydafab in editable mode
-	"postCreateCommand": "pip install --no-cache-dir -e /tools/pydafab",
-	// Uncomment to connect as an existing user other than the container default. More info: https://aka.ms/dev-containers-non-root.
-	// "remoteUser": "devuser",
-	"customizations": {
-		"vscode": {
-			"extensions": [
-				"ms-python.vscode-python-envs",
-				"ms-python.isort",
-				"ms-python.python",
-				"redhat.vscode-yaml",
-				"ms-python.autopep8",
-				"ms-python.black-formatter"
-			]
-		}
-	}
+  "name": "Data Tools",
+  // The .devcontainer/docker-compose.yml file contains any overrides you need/want to make.
+  "dockerComposeFile": [
+    "../docker-compose.yml"
+  ],
+  // The 'service' property is the name of the service for the container that VS Code should
+  // use. Update this value and .devcontainer/docker-compose.yml to the real service name.
+  "service": "data-tools",
+  // The optional 'workspaceFolder' property is the path VS Code should open by default when
+  // connected. This is typically a file mount in .devcontainer/docker-compose.yml
+  "workspaceFolder": "/tools",
+  // install pydafab in editable mode
+  "postCreateCommand": "pip install --no-cache-dir -e /tools/pydafab",
+  // "remoteUser": "devuser",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.vscode-python-envs",
+        "ms-python.isort",
+        "ms-python.python",
+        "redhat.vscode-yaml",
+        "ms-python.autopep8",
+        "ms-python.black-formatter"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": ".venv/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.analysis.typeCheckingMode": "basic",
+        "python.formatting.provider": "black",
+        "python.linting.enabled": true,
+        "python.linting.flake8Enabled": true
+      }
+    }
+  }
 }

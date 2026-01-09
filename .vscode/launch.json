@@ -1,0 +1,53 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File with Arguments",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": "${command:pickArgs}"
+        },
+        {
+            "name": "Ingest Product (S2B Sentinel-2)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/copernicus/ingest.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "--verbose",
+                "--product_id",
+                "S2B_MSIL2A_20250622T102559_N0511_R108_T31UGS_20250622T124912",
+                "--asset_keys",
+                "WVP_10m,TCI_20m"
+            ],
+            "justMyCode": false,
+            "env": {}
+        },
+        {
+            "name": "Search Products (Sentinel-2-L2A)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/copernicus/search.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "--max_items",
+                "100",
+                "--collections",
+                "sentinel-2-l2a",
+                "--bbox",
+                "6.95,50.65,7.25,50.85",
+                "--datetime",
+                "2025-06-21/2025-07-21",
+                "--cloud_cover_max",
+                "100.0",
+                "--verbose"
+            ],
+            "justMyCode": false,
+            "env": {}
+        }
+    ]
+}
