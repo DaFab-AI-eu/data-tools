@@ -15,16 +15,10 @@ logger = logging.getLogger(__name__)
 
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
-__version__ = "0.0.1"
-__author__ = "Metin Cakircali"
-__email__ = "metin.cakircali@ecmwf.int"
 
 
 class CopernicusIngestor(StacIngestor):
-    """
-    Ingests and manages Copernicus STAC catalog products and assets
-
-    """
+    """Ingests and manages Copernicus STAC catalog products and assets."""
 
     def __init__(
         self,
@@ -33,9 +27,6 @@ class CopernicusIngestor(StacIngestor):
         verbose: bool = False,
     ) -> None:
         super().__init__(stac_catalog=stac_catalog, s3_endpoint=s3_endpoint, verbose=verbose)
-        
-        if self.verbose:
-            logger.setLevel(logging.DEBUG)
 
         self.catalog.add_conforms_to("ITEM_SEARCH")
 

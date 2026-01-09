@@ -9,6 +9,7 @@ import sys
 
 from pydasi import Dasi
 
+from .helpers import setup_logging
 from .copernicus import StacIngestor
 from .errors import AssetNotFoundError, ProductNotFoundError
 
@@ -16,19 +17,12 @@ logger = logging.getLogger(__name__)
 
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
-__version__ = "0.0.1"
-__author__ = "Metin Cakircali"
-__email__ = "metin.cakircali@ecmwf.int"
 
 
 class IngestTool:
 
     def __init__(self, ingestor: StacIngestor):
-        self.__ingestor = ingestor
-        self.__verbose = ingestor.verbose
-        
-        if self.__verbose:
-            logger.setLevel(logging.DEBUG)
+        self.ingestor = ingestor
 
     def archive_product(self, product):
         """
@@ -39,7 +33,7 @@ class IngestTool:
         """
 
         try:
-            key, data = self.__ingestor.fetch_product(product)
+            key, data = self.ingestor.fetch_product(product)
         except ProductNotFoundError:
             sys.exit(f"Product [{product.id}] not found!")
 
@@ -65,16 +59,18 @@ class IngestTool:
         if product is None:
             sys.exit(f"Product [{product.id}] not found!")
 
-        dasi = Dasi("/tools/copernicus/ingest/assets.yml")
-
         for asset_key in asset_keys:
             try:
-                key, data = self.__ingestor.fetch_asset(product, asset_key)
+                key, data = self.ingestor.fetch_asset(product, asset_key)
             except AssetNotFoundError:
                 logger.warning(f"Asset [{asset_key}] not found in product [{product.id}]!")
                 continue
+
             logger.debug(f"Archiving asset: {asset_key} with key: {key}")
+
+            dasi = Dasi("/tools/copernicus/ingest/assets.yml")
             dasi.archive(key, data)
+
             logger.info(f"Archived asset: {asset_key}")
 
-        logger.debug(f"Finished archiving assets of product: {product.id}")
+        # logger.debug(f"Finished archiving assets of product: {product.id}")

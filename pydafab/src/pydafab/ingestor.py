@@ -6,47 +6,56 @@ This module provides the base class for retrieving products and their assets fro
 """
 
 import logging
+
 from typing import Any, Iterator, Optional
 
 from pystac import Asset, Item
 from pystac_client import Client
 
 from .errors import ProductNotFoundError, AssetNotFoundError
+from .helpers import setup_logging
 
 logger = logging.getLogger(__name__)
 
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
-__version__ = "0.0.1"
-__author__ = "Metin Cakircali"
-__email__ = "metin.cakircali@ecmwf.int"
+
+# Timeout in seconds for STAC API requests
+PYSTAC_TIMEOUT = 60
+# Timeout in seconds for S3 connect requests
+S3_CONNECT_TIMEOUT = 10
+# Timeout in seconds for S3 read requests
+S3_READ_TIMEOUT = 60
+# Number of retries for S3 requests
+S3_RETRYS = 3
 
 
 class StacIngestor:
-    """
-    Base class for data ingestion functionality.
-    """
+    """Base class for data ingestion functionality."""
 
     def __init__(self, stac_catalog: str, s3_endpoint: str, verbose: bool = False) -> None:
-        self.catalog = Client.open(url=stac_catalog, timeout=5)
+        self.catalog = Client.open(url=stac_catalog, timeout=PYSTAC_TIMEOUT)
         self.endpoint = s3_endpoint
         self.verbose = verbose
-        
-        if self.verbose:
-            logger.setLevel(logging.DEBUG)
+        setup_logging(self.verbose)
 
     def __repr__(self) -> str:
         return f"<StacIngestor:verbose={self.verbose}>"
 
     def __fetch_s3(self, href: str) -> Optional[bytes]:
         import boto3
+        from botocore.config import Config
 
         logger.debug(f"Fetching S3 object from {href} using endpoint {self.endpoint}")
 
+        s3_config = Config(
+            connect_timeout=S3_CONNECT_TIMEOUT, read_timeout=S3_READ_TIMEOUT, retries={'max_attempts': S3_RETRYS}
+        )
+
         try:
-            s3 = boto3.resource(service_name="s3", endpoint_url=self.endpoint)
+            s3 = boto3.resource(service_name="s3", endpoint_url=self.endpoint, config=s3_config)
             bucket, key = href.lstrip("s3://").split("/", 1)
-            response = s3.Object(bucket, key).get()["Body"]
+            response = s3.Object(bucket, key).get()["Body"]  # type: ignore
             return response.read()
         except Exception as e:
             logger.warning(f"Failed to fetch S3 object from {href}: {e}")

@@ -6,16 +6,12 @@ Example usage:
 """
 
 import argparse
-import logging
 import sys
 
 from pydafab import CopernicusIngestor, IngestTool
 
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
-__version__ = "0.0.1"
-__author__ = "Metin Cakircali"
-__email__ = "metin.cakircali@ecmwf.int"
 
 
 def parse_arguments():
@@ -45,9 +41,6 @@ def main():
     """Ingest product from Copernicus STAC and archive using Dasi."""
 
     args = parse_arguments()
-    
-    if args.verbose:
-        logging.basicConfig(level=logging.DEBUG, format='%(name)s - %(levelname)s - %(message)s')
 
     ingestor = CopernicusIngestor(verbose=args.verbose)
 

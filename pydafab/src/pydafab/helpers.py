@@ -1,0 +1,33 @@
+import logging
+
+
+def setup_logging(verbose):
+    level = logging.DEBUG if verbose else logging.INFO
+
+    fmt = logging.Formatter
+    formatter = fmt('[%(name)-15s] %(levelname)-8s: %(message)s') if verbose else fmt('%(message)s')
+
+    # Configure the root logger so all loggers inherit this handler and level
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+    root_logger.propagate = True
+
+    console = logging.StreamHandler()
+    console.setFormatter(formatter)
+    root_logger.handlers = [console]
+
+    # reduce chatter
+    logging.getLogger("pydasi").setLevel(logging.WARNING)
+    logging.getLogger("utils").setLevel(logging.WARNING)
+    # Set boto3 and botocore loggers to WARNING to
+    logging.getLogger("boto3").setLevel(logging.WARNING)
+    logging.getLogger("botocore").setLevel(logging.WARNING)
+
+    if verbose:
+        logging.getLogger("pystac").setLevel(logging.DEBUG)
+        logging.getLogger("pystac_client").setLevel(logging.DEBUG)
+        logging.getLogger("requests").setLevel(logging.DEBUG)
+        # logging.getLogger("urllib3").setLevel(logging.DEBUG)
+        u3_logger = logging.getLogger("urllib3")
+        u3_logger.setLevel(logging.DEBUG)
+        u3_logger.propagate = True  # Force it to send logs to the root handler

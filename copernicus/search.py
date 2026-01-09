@@ -15,9 +15,6 @@ from pydafab import CopernicusIngestor
 
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
-__version__ = "0.0.1"
-__author__ = "Metin Cakircali"
-__email__ = "metin.cakircali@ecmwf.int"
 
 
 def parse_arguments():
@@ -76,9 +73,6 @@ def main():
     """Main function to search Copernicus STAC and dump product IDs."""
 
     args = parse_arguments()
-    
-    if args.verbose:
-        logging.basicConfig(level=logging.DEBUG, format='%(name)s - %(levelname)s - %(message)s')
 
     params = {
         "max_items": args.max_items,
@@ -92,8 +86,7 @@ def main():
 
     for product in CopernicusIngestor(verbose=args.verbose).search(params):
         products.append(product.id)
-        if args.verbose:
-            print(f"Found product ID: {product.id}")
+        logging.debug(f"Found product ID: {product.id}")
 
     # Save found products to a JSON file
     with open(args.output_file, mode="w") as f:
