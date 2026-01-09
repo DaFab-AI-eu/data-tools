@@ -1,0 +1,36 @@
+name: develop
+
+services:
+    data-tools:
+        image: data-tools:develop
+        
+        build:
+            context: .
+            dockerfile: Dockerfile.develop
+
+        environment:
+            - SSH_AUTH_SOCK=${SSH_AUTH_SOCK}
+
+        volumes:
+            - ${SSH_AUTH_SOCK}:${SSH_AUTH_SOCK}
+            - /mnt/dasi/tools:/tools:cached
+            - metadata:/data/metadata/root
+            - assets:/data/assets/root
+
+        # use a ptrace-based debugger C++
+        cap_add:
+            - SYS_PTRACE
+        security_opt:
+            - seccomp:unconfined
+
+        # allow core dumps
+        privileged: true
+        ulimits:
+            core: -1
+
+        stdin_open: true
+        tty: true
+
+volumes:
+  metadata:
+  assets:

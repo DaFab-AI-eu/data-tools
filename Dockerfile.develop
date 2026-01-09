@@ -1,0 +1,11 @@
+FROM dasi:latest
+
+USER root
+
+COPY requirements.txt /tmp/requirements.txt
+
+COPY eodata-s3.creds /root/.aws/credentials
+
+RUN python -m pip install -q --no-cache-dir -r /tmp/requirements.txt
+
+WORKDIR /tools
