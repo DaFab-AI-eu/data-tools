@@ -31,3 +31,22 @@ def setup_logging(verbose):
         u3_logger = logging.getLogger("urllib3")
         u3_logger.setLevel(logging.DEBUG)
         u3_logger.propagate = True  # Force it to send logs to the root handler
+
+
+def log_request(request) -> None:
+    method = getattr(request, 'method', 'UNKNOWN')
+    url = getattr(request, 'url', 'UNKNOWN')
+    print(f"{method} {url}")
+
+    # Log headers if available
+    headers = getattr(request, 'headers', {})
+    if headers:
+        print(f"Headers: {dict(headers)}")
+
+    # Log payload from json attribute (pystac-client uses json for POST data)
+    json_data = getattr(request, 'json', None)
+    if json_data:
+        import json
+        print(f"Payload: {json.dumps(json_data, indent=2)}")
+
+    return None
