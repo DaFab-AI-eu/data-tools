@@ -9,6 +9,7 @@ import argparse
 import sys
 
 from pydafab import CopernicusIngestor, IngestTool
+from .modifier import ProductModifier
 
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
@@ -51,9 +52,11 @@ def main():
 
     tool = IngestTool(ingestor)
 
-    tool.archive_product(product)
+    modifier = ProductModifier()
 
-    tool.archive_assets(product, args.asset_keys.split(","))
+    tool.archive_product(product,modifier)
+
+    tool.archive_assets(product, args.asset_keys.split(","), modifier)
 
 
 if __name__ == "__main__":
