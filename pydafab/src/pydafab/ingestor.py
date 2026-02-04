@@ -33,27 +33,29 @@ S3_RETRYS = 3
 class StacIngestor:
     """Base class for data ingestion functionality."""
 
-    def __init__(self, stac_catalog: str, s3_endpoint: str, verbose: bool = False) -> None:
+    def __init__(self, stac_catalog: str, s3_endpoint: str, verbose: bool = False):
+        # from .helpers import log_request
+        # self.catalog = Client.open(url=stac_catalog, timeout=PYSTAC_TIMEOUT, request_modifier=log_request)
         self.catalog = Client.open(url=stac_catalog, timeout=PYSTAC_TIMEOUT)
-        self.endpoint = s3_endpoint
+        self.s3_endpoint = s3_endpoint
         self.verbose = verbose
         setup_logging(self.verbose)
 
     def __repr__(self) -> str:
         return f"<StacIngestor:verbose={self.verbose}>"
 
-    def __fetch_s3(self, href: str) -> Optional[bytes]:
+    def _fetch_s3(self, href: str) -> Optional[bytes]:
         import boto3
         from botocore.config import Config
 
-        logger.debug(f"Fetching S3 object from {href} using endpoint {self.endpoint}")
+        logger.debug(f"Fetching S3 object from {href} using endpoint {self.s3_endpoint}")
 
         s3_config = Config(
             connect_timeout=S3_CONNECT_TIMEOUT, read_timeout=S3_READ_TIMEOUT, retries={'max_attempts': S3_RETRYS}
         )
 
         try:
-            s3 = boto3.resource(service_name="s3", endpoint_url=self.endpoint, config=s3_config)
+            s3 = boto3.resource(service_name="s3", endpoint_url=self.s3_endpoint, config=s3_config)
             bucket, key = href.lstrip("s3://").split("/", 1)
             response = s3.Object(bucket, key).get()["Body"]  # type: ignore
             return response.read()
@@ -98,7 +100,11 @@ class StacIngestor:
 
         logger.debug(f"Finding product with ID: {product_id}")
 
-        return next(self.catalog.get_items(product_id), None)
+        product = next(self.catalog.get_items(product_id), None)
+
+        logger.debug(f"Found product: {product.self_href if product else 'None'}")
+
+        return product
 
     def fetch_product(self, product: Item) -> tuple[dict[str, str], bytes]:
         """
@@ -149,7 +155,7 @@ class StacIngestor:
 
         key = self.make_asset_key_from_product(product, asset)
 
-        data = self.__fetch_s3(asset.href)
+        data = self._fetch_s3(asset.href)
 
         if data is None:
             raise AssetNotFoundError

@@ -5,7 +5,7 @@ Unit tests for Copernicus search and ingest functionality.
 import pytest
 from unittest.mock import MagicMock, patch
 from pydafab.copernicus import CopernicusIngestor
-from pydafab.ingest_tool import IngestTool
+from pydafab.ingest_tool import DasiProductHandler
 
 
 @pytest.fixture
@@ -47,7 +47,7 @@ def test_make_key_from_product(mock_init, dummy_product):
         ingestor = CopernicusIngestor()
         ingestor.catalog = MagicMock()
         ingestor.verbose = False
-        ingestor.endpoint = "https://eodata.dataspace.copernicus.eu"
+        ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
 
         key = ingestor.make_key_from_product(dummy_product)
         assert key["collection"] == "sentinel-2-l2a"
@@ -70,7 +70,7 @@ def test_make_asset_key_from_product(mock_init, dummy_product, dummy_asset):
         ingestor = CopernicusIngestor()
         ingestor.catalog = MagicMock()
         ingestor.verbose = False
-        ingestor.endpoint = "https://eodata.dataspace.copernicus.eu"
+        ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
 
         key = ingestor.make_asset_key_from_product(dummy_product, dummy_asset)
         assert key["gsd"] == "10"
@@ -85,7 +85,7 @@ def test_search_calls_super(mock_search, mock_init):
         ingestor = CopernicusIngestor()
         ingestor.catalog = MagicMock()
         ingestor.verbose = False
-        ingestor.endpoint = "https://eodata.dataspace.copernicus.eu"
+        ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
         params = {
             "max_items": 1,
             "collections": "sentinel-2-l2a",
@@ -106,8 +106,8 @@ def test_archive_product_and_assets(mock_dasi, mock_init, dummy_product):
         ingestor = CopernicusIngestor()
         ingestor.catalog = MagicMock()
         ingestor.verbose = False
-        ingestor.endpoint = "https://eodata.dataspace.copernicus.eu"
-        tool = IngestTool(ingestor)
+        ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
+        tool = DasiProductHandler(ingestor)
         ingestor.fetch_product = MagicMock(return_value=({"key": "val"}, b"data"))
         ingestor.fetch_asset = MagicMock(return_value=({"key": "val"}, b"data"))
         tool.archive_product(dummy_product)
@@ -121,7 +121,7 @@ def test_search_returns_dummy_product(dummy_product):
         ingestor = CopernicusIngestor()
         ingestor.catalog = MagicMock()
         ingestor.verbose = False
-        ingestor.endpoint = "https://eodata.dataspace.copernicus.eu"
+        ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
         # Mock catalog.search().items() to yield dummy_product
         ingestor.catalog.search.return_value.items.return_value = [dummy_product]
         params = {

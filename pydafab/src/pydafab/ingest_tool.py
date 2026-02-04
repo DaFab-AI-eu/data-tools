@@ -1,15 +1,8 @@
-"""
-
-DASI Ingest Tool
-
-"""
-
 import logging
 import sys
 
 from pydasi import Dasi
 
-from .helpers import setup_logging
 from .copernicus import StacIngestor
 from .errors import AssetNotFoundError, ProductNotFoundError
 
@@ -19,16 +12,19 @@ __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
 
 
-class IngestTool:
+class DasiProductHandler:
 
-    def __init__(self, ingestor: StacIngestor):
+    def __init__(self, config_dir, ingestor: StacIngestor):
+        """Initializes with a directory path to the Dasi configurations and an ingestor instance."""
+        self.config_dir = config_dir
+        if not config_dir.is_dir():
+            raise NotADirectoryError(f"Config directory is not a directory: {config_dir}")
         self.ingestor = ingestor
 
-    def archive_product(self, product):
+    def archive_product(self, product, modifier=None):
         """
         Archive a product using the ingestor and Dasi metadata tool
 
-        :param self: Instance of IngestTool
         :param product: Product object to be archived
         """
 
@@ -39,17 +35,19 @@ class IngestTool:
 
         logger.debug(f"Archiving product: {product.id} with key: {key}")
 
+        if modifier:
+            data = modifier.modify_product_metadata(data)
+
         # TODO: Make the path to the Dasi config file configurable
-        dasi = Dasi("/tools/copernicus/ingest/metadata.yml")
+        dasi = Dasi(self.config_dir / "metadata.yml")
         dasi.archive(key, data)
 
         logger.info(f"Archived product: {product.id}")
 
-    def archive_assets(self, product, asset_keys):
+    def archive_assets(self, product, asset_keys, modifier=None):
         """
         Archive specified assets of a product using Dasi
 
-        :param self: Instance of IngestTool
         :param product: Product whose assets will be archived
         :param asset_keys: List of asset keys to archive
         """
@@ -66,11 +64,14 @@ class IngestTool:
                 logger.warning(f"Asset [{asset_key}] not found in product [{product.id}]!")
                 continue
 
-            logger.debug(f"Archiving asset: {asset_key} with key: {key}")
+            logger.debug(f"Archiving asset: {asset_key} with DASI key: {key}")
 
-            dasi = Dasi("/tools/copernicus/ingest/assets.yml")
+            if modifier:
+                data = modifier.modify_asset(asset_key, data)
+
+            dasi = Dasi(self.config_dir / "assets.yml")
             dasi.archive(key, data)
 
             logger.info(f"Archived asset: {asset_key}")
 
-        # logger.debug(f"Finished archiving assets of product: {product.id}")
+        # logger.info(f"Archived assets of product: {product.id}")

@@ -5,11 +5,11 @@ __version__ = version("pydafab")
 
 from .errors import InvalidArgumentError, ProductNotFoundError
 from .copernicus import CopernicusIngestor
-from .ingest_tool import IngestTool
+from .ingest_tool import DasiProductHandler
 
 __all__ = [
     "InvalidArgumentError",
     "ProductNotFoundError",
     "CopernicusIngestor",
-    "IngestTool",
+    "DasiProductHandler",
 ]
