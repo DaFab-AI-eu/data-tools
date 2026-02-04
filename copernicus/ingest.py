@@ -8,7 +8,7 @@ Example usage:
 import argparse
 import sys
 
-from pydafab import CopernicusIngestor, IngestTool
+from pydafab import CopernicusIngestor, DasiProductHandler
 from .modifier import ProductModifier
 
 __copyright__ = "Copyright 2025, ECMWF"
@@ -16,11 +16,17 @@ __license__ = "Apache License Version 2.0"
 
 
 def parse_arguments():
-    arg_parser = argparse.ArgumentParser("ingest_metadata_copernicus_stac")
+    arg_parser = argparse.ArgumentParser("ingest_copernicus_product")
     arg_parser.add_argument(
         "--verbose",
         action="store_true",
         help="Enable verbose output",
+    )
+    arg_parser.add_argument(
+        "--config_dir",
+        type=str,
+        help="Path to the configuration directory for Dasi. default: /tools/copernicus/ingest",
+        default="/tools/copernicus/ingest",
     )
     arg_parser.add_argument(
         "--product_id",
@@ -50,11 +56,11 @@ def main():
     if product is None:
         sys.exit(f"Product [{args.product_id}] not found!")
 
-    tool = IngestTool(ingestor)
+    tool = DasiProductHandler(args.config_dir, ingestor)
 
     modifier = ProductModifier()
 
-    tool.archive_product(product,modifier)
+    tool.archive_product(product, modifier)
 
     tool.archive_assets(product, args.asset_keys.split(","), modifier)
 
