@@ -1,7 +1,7 @@
-name: develop
+name: data-tools
 
 services:
-    data-tools:
+    develop:
         image: data-tools:develop
         
         build:
