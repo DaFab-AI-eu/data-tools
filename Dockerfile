@@ -1,14 +1,13 @@
-FROM dasi:latest
+FROM dasi:0.2.8
 
 USER root
 
+RUN python -m pip install poetry
+
 WORKDIR /tmp
 
-COPY requirements.txt ./requirements.txt
-COPY pydafab ./pydafab
+COPY ./pydafab ./pydafab
 
-RUN set -ex; \
-    python -m pip install -q --no-cache-dir -r ./requirements.txt && \
-    python -m pip install -q --no-cache-dir -e ./pydafab
+RUN cd pydafab && poetry install
 
 WORKDIR /tools
