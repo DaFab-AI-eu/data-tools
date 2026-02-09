@@ -2,12 +2,14 @@ FROM dasi:0.2.8
 
 USER root
 
-RUN python -m pip install poetry
-
 WORKDIR /tmp
 
 COPY ./pydafab ./pydafab
 
-RUN cd pydafab && poetry install
+RUN set -ex; \
+    cd pydafab && \
+    pip install -q --no-cache-dir -U pip poetry && \
+    poetry config virtualenvs.create false && \
+    poetry install --no-interaction --no-ansi
 
 WORKDIR /tools

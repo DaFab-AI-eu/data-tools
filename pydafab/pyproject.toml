@@ -9,7 +9,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-pydasi = ">0.2.7"
+pydasi = ">0.2.8"
 pystac = ">1.12"
 pystac-client = ">0.8"
 boto3 = ">1.41"
