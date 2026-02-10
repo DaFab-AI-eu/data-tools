@@ -1,7 +1,9 @@
-FROM dasi:0.2.8
+FROM dasi-test:latest
 
 USER root
 
-RUN pip install -q --no-cache-dir -U pip poetry
+RUN set -ex; \
+    pip install -q --no-cache-dir -U pip poetry && \
+    pip install -q --no-cache-dir -e /workspace/dasi/pydasi
 
 WORKDIR /tools

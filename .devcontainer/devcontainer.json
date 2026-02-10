@@ -11,7 +11,7 @@
   // connected. This is typically a file mount in .devcontainer/docker-compose.yml
   "workspaceFolder": "/tools/pydafab",
   // install pydafab in editable mode
-  "postCreateCommand": "pip install -U pip && pip install --no-cache-dir -e /tools/pydafab",
+  "postCreateCommand": "pip install -e /tools/pydafab",
   // "remoteUser": "devuser",
   "customizations": {
     "vscode": {
