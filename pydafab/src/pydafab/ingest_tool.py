@@ -38,7 +38,6 @@ class DasiProductHandler:
         if modifier:
             data = modifier.modify_product_metadata(data)
 
-        # TODO: Make the path to the Dasi config file configurable
         dasi = Dasi(self.config_dir / "metadata.yml")
         dasi.archive(key, data)
 
@@ -54,15 +53,14 @@ class DasiProductHandler:
 
         logger.debug(f"Archiving assets of product: {product.id} with keys: {asset_keys}")
 
-        if product is None:
-            sys.exit(f"Product [{product.id}] not found!")
-
         for asset_key in asset_keys:
             try:
                 key, data = self.ingestor.fetch_asset(product, asset_key)
             except AssetNotFoundError:
                 logger.warning(f"Asset [{asset_key}] not found in product [{product.id}]!")
                 continue
+            except ProductNotFoundError:
+                sys.exit(f"Product [{product.id}] not found!")
 
             logger.debug(f"Archiving asset: {asset_key} with DASI key: {key}")
 
