@@ -2,6 +2,7 @@
 Unit tests for Copernicus search and ingest functionality.
 """
 
+from importlib import metadata
 import pytest
 from unittest.mock import MagicMock, patch
 from pydafab.copernicus import CopernicusIngestor
@@ -107,7 +108,7 @@ def test_archive_product_and_assets(mock_dasi, mock_init, dummy_product):
         ingestor.catalog = MagicMock()
         ingestor.verbose = False
         ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
-        tool = DasiProductHandler(ingestor)
+        tool = DasiProductHandler(ingestor, "/tools/copernicus/ingest/metadata.json")
         ingestor.fetch_product = MagicMock(return_value=({"key": "val"}, b"data"))
         ingestor.fetch_asset = MagicMock(return_value=({"key": "val"}, b"data"))
         tool.archive_product(dummy_product)
