@@ -1,5 +1,6 @@
 import logging
 import sys
+from pathlib import Path
 
 from pydasi import Dasi
 
@@ -14,11 +15,11 @@ __license__ = "Apache License Version 2.0"
 
 class DasiProductHandler:
 
-    def __init__(self, config_dir, ingestor: StacIngestor):
+    def __init__(self, ingestor: StacIngestor, config_dir: str = "."):
         """Initializes with a directory path to the Dasi configurations and an ingestor instance."""
-        self.config_dir = config_dir
-        if not config_dir.is_dir():
-            raise NotADirectoryError(f"Config directory is not a directory: {config_dir}")
+        self.config_dir = Path(config_dir)
+        if not Path(self.config_dir).is_dir():
+            raise NotADirectoryError(f"Parameter 'config_dir' is not a directory: {config_dir}")
         self.ingestor = ingestor
 
     def archive_product(self, product, modifier=None):
@@ -35,10 +36,10 @@ class DasiProductHandler:
 
         logger.debug(f"Archiving product: {product.id} with key: {key}")
 
-        if modifier:
+        if modifier and hasattr(modifier, "modify_product_metadata"):
             data = modifier.modify_product_metadata(data)
 
-        dasi = Dasi(self.config_dir / "metadata.yml")
+        dasi = Dasi(str(Path(self.config_dir) / "metadata.yml"))
         dasi.archive(key, data)
 
         logger.info(f"Archived product: {product.id}")
@@ -64,12 +65,52 @@ class DasiProductHandler:
 
             logger.debug(f"Archiving asset: {asset_key} with DASI key: {key}")
 
-            if modifier:
+            if modifier and hasattr(modifier, "modify_asset"):
                 data = modifier.modify_asset(asset_key, data)
 
-            dasi = Dasi(self.config_dir / "assets.yml")
+            dasi = Dasi(str(self.config_dir / "assets.yml"))
             dasi.archive(key, data)
 
             logger.info(f"Archived asset: {asset_key}")
 
-        # logger.info(f"Archived assets of product: {product.id}")
+    def retrieve_metadata(self, product):
+        """Retrieve metadata by product ID."""
+
+        # Dasi query values must be lists
+        query = {k: [v] for k, v in self.ingestor.make_key_from_product(product).items()}
+
+        dasi = Dasi(str(self.config_dir / "metadata.yml"))
+
+        retrieved = dasi.retrieve(query)
+
+        if len(retrieved) == 1:
+            logger.info(f"Retrieved product metadata for {product.id}")
+            for item in retrieved:
+                return item.data
+        elif len(retrieved) == 0:
+            logger.info(f"No product metadata found for Query={query}")
+        else:
+            sys.exit(f"Multiple results found for Query={query}")
+
+    def retrieve_assets(self, product, asset_keys):
+
+        assets: dict[str, bytearray] = {}
+        dasi = Dasi(str(self.config_dir / "assets.yml"))
+
+        for asset_key in asset_keys:
+            # Dasi query values must be lists
+            asset = product.assets[asset_key]
+            query = {k: [v] for k, v in self.ingestor.make_asset_key_from_product(product, asset).items()}
+
+            retrieved = dasi.retrieve(query)
+
+            if len(retrieved) == 1:
+                logger.info(f"Retrieved asset for {product.id}")
+                for item in retrieved:
+                    assets[asset_key] = item.data
+            elif len(retrieved) == 0:
+                logger.info(f"No asset found for Query={query}")
+            else:
+                sys.exit(f"Multiple results found for Query={query}")
+
+        return assets
