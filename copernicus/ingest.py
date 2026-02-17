@@ -8,8 +8,10 @@ Example usage:
 import argparse
 import sys
 
+import helpers
+
 from pydafab import CopernicusIngestor, DasiProductHandler
-from .modifier import ProductModifier
+
 
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
@@ -56,9 +58,9 @@ def main():
     if product is None:
         sys.exit(f"Product [{args.product_id}] not found!")
 
-    tool = DasiProductHandler(args.config_dir, ingestor)
+    tool = DasiProductHandler(ingestor, args.config_dir)
 
-    modifier = ProductModifier()
+    modifier = helpers.ProductModifier()
 
     tool.archive_product(product, modifier)
 
