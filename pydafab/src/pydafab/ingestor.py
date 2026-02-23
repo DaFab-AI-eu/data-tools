@@ -9,7 +9,7 @@ import logging
 
 from typing import Any, Iterator, Optional
 
-from pystac import Asset, Item
+from pystac import Item
 from pystac_client import Client
 
 from .errors import ProductNotFoundError, AssetNotFoundError
@@ -39,6 +39,7 @@ class StacIngestor:
         self.catalog = Client.open(url=stac_catalog, timeout=PYSTAC_TIMEOUT)
         self.s3_endpoint = s3_endpoint
         self.verbose = verbose
+        self.source = "unknown"
         setup_logging(self.verbose)
 
     def __repr__(self) -> str:
@@ -63,18 +64,6 @@ class StacIngestor:
             logger.warning(f"Failed to fetch S3 object from {href}: {e}")
 
         return None
-
-    def _fix_key(self, key: dict[str, str]) -> dict[str, str]:
-        for fix in [("/", "_"), (":", "_")]:
-            for k, v in key.items():
-                key[k] = str(v).replace(*fix)
-        return key
-
-    def make_key_from_product(self, product: Item) -> dict[str, str]:
-        raise NotImplementedError
-
-    def make_asset_key_from_product(self, product: Item, asset: Asset) -> dict[str, str]:
-        raise NotImplementedError
 
     def search(self, params: dict[str, Any]) -> Iterator[Item]:
         """
@@ -106,7 +95,7 @@ class StacIngestor:
 
         return product
 
-    def fetch_product(self, product: Item) -> tuple[dict[str, str], bytes]:
+    def fetch_product(self, product: Item):
         """
         Fetch a product and return its metadata key and data content
 
@@ -128,11 +117,9 @@ class StacIngestor:
 
         logger.debug(f"Fetched product: {product.id}, size: {len(data)} bytes")
 
-        key = self.make_key_from_product(product)
+        return data
 
-        return key, data
-
-    def fetch_asset(self, product: Item, asset_key: str) -> tuple[dict[str, str], bytes]:
+    def fetch_asset(self, product: Item, asset_key: str):
         """
         Fetch a specific asset from a product and return its metadata key and data
 
@@ -153,8 +140,6 @@ class StacIngestor:
 
         asset = product.assets[asset_key]
 
-        key = self.make_asset_key_from_product(product, asset)
-
         data = self._fetch_s3(asset.href)
 
         if data is None:
@@ -162,4 +147,4 @@ class StacIngestor:
         else:
             logger.debug(f"Fetched asset: {asset_key} from product: {product.id}, size: {len(data)} bytes")
 
-        return key, data
+        return asset, data
