@@ -1,7 +1,7 @@
 """Ingest product and its assets from Copernicus STAC and archive using Dasi.
 
 Example usage:
-    python copernicus/ingest.py --product_id=S2C_MSIL2A_20250123T230911_N0511_R044_T01UBS_20250124T013809 --asset_keys=WVP_10m,TCI_20m
+    python copernicus/ingest.py --product_id=S2C_MSIL2A_20250123T230911_N0511_R044_T01UBS_20250124T013809 --asset_names=WVP_10m,TCI_20m
 
 """
 
@@ -37,7 +37,7 @@ def parse_arguments():
         required=True,
     )
     arg_parser.add_argument(
-        "--asset_keys",
+        "--asset_names",
         type=str,
         help="Comma-separated list of assets to ingest, e.g., WVP_10m,TCI_20m",
         required=True,
@@ -64,7 +64,7 @@ def main():
 
     handler.archive_product(product, modifier)
 
-    handler.archive_assets(product, args.asset_keys.split(","), modifier)
+    handler.archive_assets(product, args.asset_names.split(","), modifier)
 
 
 if __name__ == "__main__":

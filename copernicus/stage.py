@@ -2,7 +2,7 @@
 
 Example usage:
     python copernicus/stage.py --product_id=S2C_MSIL2A_20250123T230911_N0511_R044_T01UBS_20250124T013809 --output_dir=/tmp
-    python copernicus/stage.py --product_id=S2C_MSIL2A_20250123T230911_N0511_R044_T01UBS_20250124T013809 --output_dir=/tmp --asset_keys=WVP_10m,TCI_20m
+    python copernicus/stage.py --product_id=S2C_MSIL2A_20250123T230911_N0511_R044_T01UBS_20250124T013809 --output_dir=/tmp --asset_names=WVP_10m,TCI_20m
 
 """
 
@@ -43,7 +43,7 @@ def parse_arguments():
         required=True,
     )
     arg_parser.add_argument(
-        "--asset_keys",
+        "--asset_names",
         type=str,
         help="Comma-separated list of assets to ingest, e.g., WVP_10m,TCI_20m",
     )
@@ -72,12 +72,13 @@ def main():
             of.write(metadata)
         logging.info(f"Product metadata saved to: {output_file}")
 
-    if args.asset_keys:
+    if args.asset_names:
         for asset_name, key, data in handler.retrieve_assets(
-            product, args.asset_keys.split(",")
+            product, args.asset_names.split(",")
         ):
             from pydafab.helpers import media_subtype
 
+            # Determine file extension based on media type of the asset
             ext = media_subtype(key["mediatype"])
             asset_output_file = os.path.join(
                 args.output_dir, f"{product.id}_{asset_name}.{ext}"

@@ -88,4 +88,4 @@ class DasiProduct:
         self._key["project"] = getattr(asset.ext.proj, "code", "null")
         self._key["mediatype"] = getattr(asset, "media_type", "null")
 
-        return self.key
+        return self

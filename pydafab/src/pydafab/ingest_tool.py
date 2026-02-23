@@ -51,37 +51,37 @@ class DasiProductHandler:
 
         logger.info("Archived product: %s", product.id)
 
-    def archive_assets(self, product: Item, asset_keys: list[str], modifier: Any = None) -> None:
+    def archive_assets(self, product: Item, asset_names: list[str], modifier: Any = None) -> None:
         """
         Archive specified assets of a product using Dasi
 
         Args:
             product: Product whose assets will be archived.
-            asset_keys: List of asset keys to archive.
+            asset_names: List of asset names to archive.
             modifier: Optional tool to modify the asset before download.
         """
 
-        logger.debug("Archiving assets of product: %s with keys: %s", product.id, asset_keys)
+        logger.debug("Archiving assets of product: %s with names: %s", product.id, asset_names)
 
-        for asset_key in asset_keys:
+        for asset_name in asset_names:
             try:
-                asset, data = self.ingestor.fetch_asset(product, asset_key)
-                key = DasiProduct(source=self.ingestor.source, product=product).set_asset(asset)
+                asset, data = self.ingestor.fetch_asset(product, asset_name)
+                key = DasiProduct(source=self.ingestor.source, product=product).set_asset(asset).key
             except AssetNotFoundError:
-                logger.warning("Asset [%s] not found in product [%s]!", asset_key, product.id)
+                logger.warning("Asset [%s] not found in product [%s]!", asset_name, product.id)
                 continue
             except ProductNotFoundError as e:
                 raise ProductNotFoundError(f"Product [{product.id}] not found!") from e
 
-            logger.debug("Archiving asset: %s with DASI key: %s", asset_key, key)
+            logger.debug("Archiving asset: %s with DASI key: %s", asset_name, key)
 
             if modifier and hasattr(modifier, "modify_asset"):
-                data = modifier.modify_asset(asset_key, data)
+                data = modifier.modify_asset(key, data)
 
             dasi = Dasi(str(self.config_dir / "assets.yml"))
             dasi.archive(key, data)
 
-            logger.info("Archived asset: %s", asset_key)
+            logger.info("Archived asset: %s", asset_name)
 
     def retrieve_metadata(self, product: Item) -> Any:
         """
@@ -107,25 +107,25 @@ class DasiProductHandler:
         for item in retrieved:
             yield item.data
 
-    def retrieve_assets(self, product: Item, asset_keys: list[str]):
+    def retrieve_assets(self, product: Item, asset_names: list[str]):
         """
         Retrieve assets for a product as an iterator.
 
         Args:
             product: The product object containing asset definitions.
-            asset_keys: A list of asset keys to retrieve.
+            asset_names: A list of asset keys to retrieve.
 
         Yields:
             A tuple of (asset_key, asset_data).
         """
 
-        for asset_key in asset_keys:
+        for asset_key in asset_names:
             # Dasi query values must be lists
             query = {
                 k: [v]
                 for k, v in DasiProduct(source=self.ingestor.source, product=product)
                 .set_asset(product.assets[asset_key])
-                .items()
+                .key.items()
             }
 
             dasi = Dasi(str(self.config_dir / "assets.yml"))

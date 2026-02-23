@@ -20,7 +20,7 @@
                 "--verbose",
                 "--product_id",
                 "S2B_MSIL2A_20250622T102559_N0511_R108_T31UGS_20250622T124912",
-                "--asset_keys",
+                "--asset_names",
                 "WVP_10m,TCI_20m"
             ],
             "justMyCode": false,
