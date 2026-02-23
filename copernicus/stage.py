@@ -1,8 +1,8 @@
 """Ingest product and its assets from Copernicus STAC and archive using Dasi.
 
 Example usage:
-    python copernicus/pull-from-dasi.py --product_id=S2C_MSIL2A_20250123T230911_N0511_R044_T01UBS_20250124T013809 --output_dir=/tmp
-    python copernicus/pull-from-dasi.py --product_id=S2C_MSIL2A_20250123T230911_N0511_R044_T01UBS_20250124T013809 --output_dir=/tmp --asset_keys=WVP_10m,TCI_20m
+    python copernicus/stage.py --product_id=S2C_MSIL2A_20250123T230911_N0511_R044_T01UBS_20250124T013809 --output_dir=/tmp
+    python copernicus/stage.py --product_id=S2C_MSIL2A_20250123T230911_N0511_R044_T01UBS_20250124T013809 --output_dir=/tmp --asset_keys=WVP_10m,TCI_20m
 
 """
 
@@ -63,32 +63,28 @@ def main():
     if product is None:
         sys.exit(f"Product [{args.product_id}] not found!")
 
-    tool = DasiProductHandler(ingestor, args.config_dir)
+    handler = DasiProductHandler(ingestor, args.config_dir)
 
-    metadata = tool.retrieve_metadata(product)
-
-    if metadata:
+    for metadata in handler.retrieve_metadata(product):
         os.makedirs(args.output_dir, exist_ok=True)
         output_file = os.path.join(args.output_dir, f"{product.id}.json")
         with open(output_file, "wb") as of:
             of.write(metadata)
         logging.info(f"Product metadata saved to: {output_file}")
 
-    # Asset retrieval is optional, only if asset keys are provided
     if args.asset_keys:
-        assets = tool.retrieve_assets(product, args.asset_keys.split(","))
-        for asset_key, asset_data in assets.items():
-            if asset_data:
-                asset_output_file = os.path.join(
-                    args.output_dir, f"{product.id}_{asset_key}.asset"
-                )
-                with open(asset_output_file, "wb") as of:
-                    of.write(asset_data)
-                logging.info(f"Asset [{asset_key}] saved to: {asset_output_file}")
-            else:
-                logging.warning(
-                    f"Asset [{asset_key}] not found for product [{product.id}]!"
-                )
+        for asset_name, key, data in handler.retrieve_assets(
+            product, args.asset_keys.split(",")
+        ):
+            from pydafab.helpers import media_subtype
+
+            ext = media_subtype(key["mediatype"])
+            asset_output_file = os.path.join(
+                args.output_dir, f"{product.id}_{asset_name}.{ext}"
+            )
+            with open(asset_output_file, "wb") as of:
+                of.write(data)
+            logging.info(f"Asset [%s] saved to: %s", asset_name, asset_output_file)
 
 
 if __name__ == "__main__":
