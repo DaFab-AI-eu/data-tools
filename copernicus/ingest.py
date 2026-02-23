@@ -58,13 +58,13 @@ def main():
     if product is None:
         sys.exit(f"Product [{args.product_id}] not found!")
 
-    tool = DasiProductHandler(ingestor, args.config_dir)
+    handler = DasiProductHandler(ingestor, args.config_dir)
 
     modifier = helpers.ProductModifier()
 
-    tool.archive_product(product, modifier)
+    handler.archive_product(product, modifier)
 
-    tool.archive_assets(product, args.asset_keys.split(","), modifier)
+    handler.archive_assets(product, args.asset_keys.split(","), modifier)
 
 
 if __name__ == "__main__":
