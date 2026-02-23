@@ -6,10 +6,9 @@ This module provides the CopernicusIngestor class for querying and retrieving pr
 """
 
 import logging
-from datetime import datetime
 from typing import Any, Iterator
 
-from .ingestor import StacIngestor, Asset, Item
+from .ingestor import StacIngestor, Item
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +26,11 @@ class CopernicusIngestor(StacIngestor):
         verbose: bool = False,
     ) -> None:
         super().__init__(stac_catalog=stac_catalog, s3_endpoint=s3_endpoint, verbose=verbose)
+
+        if s3_endpoint == "https://eodata.dataspace.copernicus.eu":
+            self.source = "CDSE"
+        elif s3_endpoint == "https://eodata.cloudferro.com":
+            self.source = "CREODIAS"
 
         self.catalog.add_conforms_to("ITEM_SEARCH")
 
