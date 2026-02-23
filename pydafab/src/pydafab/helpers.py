@@ -33,6 +33,21 @@ def setup_logging(verbose):
         u3_logger.propagate = True  # Force it to send logs to the root handler
 
 
+def media_subtype(media_type: str, separator: str = "_") -> str:
+    """Extract the subtype from a media type string.
+
+    Args:
+        media_type: A media type like 'image_jp2' or 'image/tiff'.
+        separator: The separator between type and subtype (default: '_').
+
+    Returns:
+        The subtype portion (e.g. 'jp2', 'tiff'), or the original
+        string if no separator is found.
+    """
+    _, _, subtype = media_type.rpartition(separator)
+    return subtype or media_type
+
+
 def log_request(request) -> None:
     method = getattr(request, 'method', 'UNKNOWN')
     url = getattr(request, 'url', 'UNKNOWN')
@@ -47,6 +62,7 @@ def log_request(request) -> None:
     json_data = getattr(request, 'json', None)
     if json_data:
         import json
+
         print(f"Payload: {json.dumps(json_data, indent=2)}")
 
     return None
