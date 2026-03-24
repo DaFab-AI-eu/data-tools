@@ -31,6 +31,12 @@ def parse_arguments():
         default="/tools/copernicus/ingest",
     )
     arg_parser.add_argument(
+        "--collections",
+        type=str,
+        help="STAC collections to search in, e.g., sentinel-2-l2a",
+        default="sentinel-2-l2a",
+    )
+    arg_parser.add_argument(
         "--product_id",
         type=str,
         help="Product ID to ingest from Copernicus STAC, e.g., S2C_MSIL2A_20250123T230911_N0511_R044_T01UBS_20250124T013809",
@@ -53,7 +59,7 @@ def main():
 
     ingestor = CopernicusIngestor(verbose=args.verbose)
 
-    product = ingestor.search_product(args.product_id)
+    product = ingestor.search_product(args.product_id, collections=[args.collections])
 
     if product is None:
         sys.exit(f"Product [{args.product_id}] not found!")

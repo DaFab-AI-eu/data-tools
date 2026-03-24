@@ -77,19 +77,24 @@ class StacIngestor:
 
         return self.catalog.search(**params).items()
 
-    def search_product(self, product_id: str) -> Optional[Item]:
-        """
-        Retrieve a product from the catalog by its product ID
+    def search_product(self, product_id: str, collections: list[str] | None = None) -> Optional[Item]:
+        """Retrieve a product from the catalog by its product ID.
 
-        :param self: The StacIngestor instance
-        :param product_id: Unique identifier of the product to retrieve
-        :return: The product if found, otherwise None
-        :rtype: Optional[Item]
+        Args:
+            product_id: Unique identifier of the product to retrieve.
+            collections: Collection IDs to search within. Required by some STAC APIs.
+
+        Returns:
+            The product if found, otherwise None.
         """
 
         logger.debug(f"Finding product with ID: {product_id}")
 
-        product = next(self.catalog.get_items(product_id), None)
+        search_params: dict[str, Any] = {"ids": [product_id]}
+        if collections:
+            search_params["collections"] = collections
+
+        product = next(self.catalog.search(**search_params).items(), None)
 
         logger.debug(f"Found product: {product.self_href if product else 'None'}")
 

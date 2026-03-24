@@ -1,8 +1,8 @@
-"""Ingest product and its assets from Copernicus STAC and archive using Dasi.
+"""Retrieve a previously archived product and its assets from Dasi and save to local files.
 
 Example usage:
-    python copernicus/stage.py --product_id=S2C_MSIL2A_20250123T230911_N0511_R044_T01UBS_20250124T013809 --output_dir=/tmp
-    python copernicus/stage.py --product_id=S2C_MSIL2A_20250123T230911_N0511_R044_T01UBS_20250124T013809 --output_dir=/tmp --asset_names=WVP_10m,TCI_20m
+    python copernicus/stage.py --collections=sentinel-2-l2a --product_id=S2C_MSIL2A_20250123T230911_N0511_R044_T01UBS_20250124T013809 --output_dir=/tmp
+    python copernicus/stage.py --collections=sentinel-2-l2a --product_id=S2C_MSIL2A_20250123T230911_N0511_R044_T01UBS_20250124T013809 --output_dir=/tmp --asset_names=WVP_10m,TCI_20m
 
 """
 
@@ -37,6 +37,12 @@ def parse_arguments():
         required=True,
     )
     arg_parser.add_argument(
+        "--collections",
+        type=str,
+        help="STAC collections to search in, e.g., sentinel-2-l2a",
+        default="sentinel-2-l2a",
+    )
+    arg_parser.add_argument(
         "--product_id",
         type=str,
         help="Product ID to ingest from Copernicus STAC, e.g., S2C_MSIL2A_20250123T230911_N0511_R044_T01UBS_20250124T013809",
@@ -58,7 +64,7 @@ def main():
 
     ingestor = CopernicusIngestor(verbose=args.verbose)
 
-    product = ingestor.search_product(args.product_id)
+    product = ingestor.search_product(args.product_id, collections=[args.collections])
 
     if product is None:
         sys.exit(f"Product [{args.product_id}] not found!")
