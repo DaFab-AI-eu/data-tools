@@ -2,10 +2,10 @@
 Unit tests for Copernicus search and ingest functionality.
 """
 
-from importlib import metadata
 import pytest
 from unittest.mock import MagicMock, patch
 from pydafab.copernicus import CopernicusIngestor
+from pydafab.dasi_key import DasiKey
 from pydafab.ingest_tool import DasiProductHandler
 
 
@@ -13,7 +13,7 @@ from pydafab.ingest_tool import DasiProductHandler
 def dummy_product():
 
     class DummyProduct:
-        id = "dummy_id"
+        id = "S2C_MSIL2A_20250123T230911_N0511_R044_T01UBS_20250124T013809"
         collection_id = "sentinel-2-l2a"
         properties = {
             "platform": "Sentinel-2",
@@ -30,53 +30,18 @@ def dummy_product():
     return DummyProduct()
 
 
-@pytest.fixture
-def dummy_asset():
-
-    class DummyAsset:
-        extra_fields = {"gsd": "10"}
-        ext = MagicMock()
-        ext.proj.code = "32632"
-        media_type = "image/tiff"
-
-    return DummyAsset()
-
-
-@patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
-def test_make_key_from_product(mock_init, dummy_product):
-    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
-        ingestor = CopernicusIngestor()
-        ingestor.catalog = MagicMock()
-        ingestor.verbose = False
-        ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
-
-        key = ingestor.make_key_from_product(dummy_product)
-        assert key["collection"] == "sentinel-2-l2a"
-        assert key["platform"] == "Sentinel-2"
-        assert key["procdate"] == "20250123T230911"
-        assert key["takedate"] == "2025-01-23"
-        assert key["taketime"] == "230911"
-
-    key = ingestor.make_key_from_product(dummy_product)
-    assert key["collection"] == "sentinel-2-l2a"
-    assert key["platform"] == "Sentinel-2"
-    assert key["procdate"] == "20250123T230911"
+def test_make_key_from_product(dummy_product):
+    key = DasiKey.from_stac("CDSE", dummy_product)
+    assert key["source"] == "CDSE"
+    assert key["platform"] == "S2C"
+    assert key["procdate"] == "20250124T013809"
     assert key["takedate"] == "2025-01-23"
     assert key["taketime"] == "230911"
 
 
-@patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
-def test_make_asset_key_from_product(mock_init, dummy_product, dummy_asset):
-    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
-        ingestor = CopernicusIngestor()
-        ingestor.catalog = MagicMock()
-        ingestor.verbose = False
-        ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
-
-        key = ingestor.make_asset_key_from_product(dummy_product, dummy_asset)
-        assert key["gsd"] == "10"
-        assert key["project"] == "32632"
-        assert key["mediatype"] == "image_tiff"
+def test_make_asset_key_from_product(dummy_product):
+    key = DasiKey.from_stac("CDSE", dummy_product, "TCI_20m")
+    assert key["asset_name"] == "TCI_20m"
 
 
 @patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
@@ -102,13 +67,14 @@ def test_search_calls_super(mock_search, mock_init):
 
 @patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
 @patch("pydafab.ingest_tool.Dasi")
-def test_archive_product_and_assets(mock_dasi, mock_init, dummy_product):
+def test_archive_product_and_assets(mock_dasi, mock_init, dummy_product, tmp_path):
     with patch.object(CopernicusIngestor, "__init__", lambda self: None):
         ingestor = CopernicusIngestor()
         ingestor.catalog = MagicMock()
         ingestor.verbose = False
         ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
-        tool = DasiProductHandler(ingestor, "/tools/copernicus/ingest/metadata.json")
+        ingestor.source = "CDSE"
+        tool = DasiProductHandler(ingestor, str(tmp_path))
         ingestor.fetch_product = MagicMock(return_value=({"key": "val"}, b"data"))
         ingestor.fetch_asset = MagicMock(return_value=({"key": "val"}, b"data"))
         tool.archive_product(dummy_product)

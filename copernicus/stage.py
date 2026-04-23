@@ -12,6 +12,7 @@ import os
 import sys
 
 from pydafab import CopernicusIngestor, DasiProductHandler
+from pydafab.helpers import media_subtype
 
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
@@ -63,35 +64,32 @@ def main():
     args = parse_arguments()
 
     ingestor = CopernicusIngestor(verbose=args.verbose)
-
-    product = ingestor.search_product(args.product_id, collections=[args.collections])
-
-    if product is None:
-        sys.exit(f"Product [{args.product_id}] not found!")
-
     handler = DasiProductHandler(ingestor, args.config_dir)
 
-    for metadata in handler.retrieve_metadata(product):
-        os.makedirs(args.output_dir, exist_ok=True)
-        output_file = os.path.join(args.output_dir, f"{product.id}.json")
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    found = False
+    for metadata in handler.retrieve_metadata(args.product_id):
+        output_file = os.path.join(args.output_dir, f"{args.product_id}.json")
         with open(output_file, "wb") as of:
             of.write(metadata)
         logging.info(f"Product metadata saved to: {output_file}")
+        found = True
+
+    if not found:
+        sys.exit(f"Product [{args.product_id}] not found!")
 
     if args.asset_names:
         for asset_name, key, data in handler.retrieve_assets(
-            product, args.asset_names.split(",")
+            args.product_id, args.asset_names.split(",")
         ):
-            from pydafab.helpers import media_subtype
-
-            # Determine file extension based on media type of the asset
             ext = media_subtype(key["mediatype"])
             asset_output_file = os.path.join(
-                args.output_dir, f"{product.id}_{asset_name}.{ext}"
+                args.output_dir, f"{args.product_id}_{asset_name}.{ext}"
             )
             with open(asset_output_file, "wb") as of:
                 of.write(data)
-            logging.info(f"Asset [%s] saved to: %s", asset_name, asset_output_file)
+            logging.info("Asset [%s] saved to: %s", asset_name, asset_output_file)
 
 
 if __name__ == "__main__":

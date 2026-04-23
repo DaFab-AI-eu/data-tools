@@ -1,5 +1,11 @@
-# stac items metadata
+# Sentinel product metadata
 
-[ source, collection, platform, instruments
+# Sentinel-2
+[ source, platform=S2A/S2B/S2C
     [ procver, gridcode, takedate, taketime
         [ orbit, procdate ]]]
+
+# Sentinel-1
+[ source, platform=S1A/S1B/S1C
+    [ mode, type, polarization, takedate, taketime
+        [ orbit, datatake ]]]

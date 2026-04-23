@@ -6,7 +6,7 @@ from typing import Iterator, Any
 from pystac import Item
 from pydasi import Dasi, dasi
 
-from pydafab.dasi_product import DasiProduct
+from pydafab.dasi_key import DasiKey
 
 from .copernicus import StacIngestor
 from .errors import AssetNotFoundError, ProductNotFoundError
@@ -37,7 +37,7 @@ class DasiProductHandler:
 
         try:
             data = self.ingestor.fetch_product(product)
-            key = DasiProduct(source=self.ingestor.source, product=product).key
+            key = DasiKey.from_stac(self.ingestor.source, product)
         except ProductNotFoundError as e:
             raise ProductNotFoundError(f"Product [{product.id}] not found!") from e
 
@@ -65,8 +65,8 @@ class DasiProductHandler:
 
         for asset_name in asset_names:
             try:
-                asset, data = self.ingestor.fetch_asset(product, asset_name)
-                key = DasiProduct(source=self.ingestor.source, product=product).set_asset(asset).key
+                _asset, data = self.ingestor.fetch_asset(product, asset_name)
+                key = DasiKey.from_stac(self.ingestor.source, product, asset_name)
             except AssetNotFoundError:
                 logger.warning("Asset [%s] not found in product [%s]!", asset_name, product.id)
                 continue
@@ -83,53 +83,41 @@ class DasiProductHandler:
 
             logger.info("Archived asset: %s", asset_name)
 
-    def retrieve_metadata(self, product: Item) -> Any:
+    def retrieve_metadata(self, product_id: str) -> Iterator[bytes]:
         """
-        Retrieve metadata by product ID.
+        Retrieve product metadata from Dasi by product ID.
 
         Args:
-            product: Product to retrieve metadata for.
-
-        Returns:
-            The retrieved metadata data.
-
-        Raises:
-            RuntimeError: If multiple results are found.
-        """
-
-        # Dasi query values must be lists
-        query = {k: [v] for k, v in DasiProduct(source=self.ingestor.source, product=product).key.items()}
-
-        dasi = Dasi(str(self.config_dir / "metadata.yml"))
-
-        retrieved = dasi.retrieve(query)
-
-        for item in retrieved:
-            yield item.data
-
-    def retrieve_assets(self, product: Item, asset_names: list[str]):
-        """
-        Retrieve assets for a product as an iterator.
-
-        Args:
-            product: The product object containing asset definitions.
-            asset_names: A list of asset keys to retrieve.
+            product_id: Sentinel product ID (S1 or S2 compact naming).
 
         Yields:
-            A tuple of (asset_key, asset_data).
+            The metadata bytes for each matching record.
         """
 
-        for asset_key in asset_names:
-            # Dasi query values must be lists
-            query = {
-                k: [v]
-                for k, v in DasiProduct(source=self.ingestor.source, product=product)
-                .set_asset(product.assets[asset_key])
-                .key.items()
-            }
+        key = DasiKey.from_product_id(self.ingestor.source, product_id)
+        query = {k: [v] for k, v in key.items()}
+        dasi = Dasi(str(self.config_dir / "metadata.yml"))
+        for item in dasi.retrieve(query):
+            yield item.data
 
-            dasi = Dasi(str(self.config_dir / "assets.yml"))
-            retrieved = dasi.retrieve(query)
+    def retrieve_assets(
+        self, product_id: str, asset_names: list[str]
+    ) -> Iterator[tuple[str, dict, bytes]]:
+        """
+        Retrieve named assets for a product from Dasi.
 
-            for item in retrieved:
-                yield asset_key, item.key, item.data
+        Args:
+            product_id: Sentinel product ID (S1 or S2 compact naming).
+            asset_names: Asset labels to retrieve (e.g. "WVP_10m"). Each name
+                is queried independently against Dasi.
+
+        Yields:
+            Tuples of (asset_name, dasi_key, asset_data) per matching asset.
+        """
+
+        dasi = Dasi(str(self.config_dir / "assets.yml"))
+        for asset_name in asset_names:
+            key = DasiKey.from_product_id(self.ingestor.source, product_id, asset_name)
+            query = {k: [v] for k, v in key.items()}
+            for item in dasi.retrieve(query):
+                yield asset_name, item.key, item.data
