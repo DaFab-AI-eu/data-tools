@@ -6,7 +6,7 @@ from typing import Iterator, Any
 from pystac import Item
 from pydasi import Dasi, dasi
 
-from pydafab.dasi_key import DasiKey
+from pydafab.dasi_copernicus import CopernicusKey
 
 from .copernicus import StacIngestor
 from .errors import AssetNotFoundError, ProductNotFoundError
@@ -37,7 +37,7 @@ class DasiProductHandler:
 
         try:
             data = self.ingestor.fetch_product(product)
-            key = DasiKey.from_stac(self.ingestor.source, product)
+            key = CopernicusKey.from_stac(self.ingestor.source, product)
         except ProductNotFoundError as e:
             raise ProductNotFoundError(f"Product [{product.id}] not found!") from e
 
@@ -66,7 +66,7 @@ class DasiProductHandler:
         for asset_name in asset_names:
             try:
                 _asset, data = self.ingestor.fetch_asset(product, asset_name)
-                key = DasiKey.from_stac(self.ingestor.source, product, asset_name)
+                key = CopernicusKey.from_stac(self.ingestor.source, product, asset_name)
             except AssetNotFoundError:
                 logger.warning("Asset [%s] not found in product [%s]!", asset_name, product.id)
                 continue
@@ -94,7 +94,7 @@ class DasiProductHandler:
             The metadata bytes for each matching record.
         """
 
-        key = DasiKey.from_product_id(self.ingestor.source, product_id)
+        key = CopernicusKey.from_product_id(self.ingestor.source, product_id)
         query = {k: [v] for k, v in key.items()}
         dasi = Dasi(str(self.config_dir / "metadata.yml"))
         for item in dasi.retrieve(query):
@@ -117,7 +117,7 @@ class DasiProductHandler:
 
         dasi = Dasi(str(self.config_dir / "assets.yml"))
         for asset_name in asset_names:
-            key = DasiKey.from_product_id(self.ingestor.source, product_id, asset_name)
+            key = CopernicusKey.from_product_id(self.ingestor.source, product_id, asset_name)
             query = {k: [v] for k, v in key.items()}
             for item in dasi.retrieve(query):
                 yield asset_name, item.key, item.data

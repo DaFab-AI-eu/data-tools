@@ -43,7 +43,7 @@ def _sanitize(value: object) -> str:
     return str(value).replace("/", "_").replace(":", "_")
 
 
-class DasiKey(dict):
+class CopernicusKey(dict):
 
     @classmethod
     def from_product_id(
@@ -58,7 +58,10 @@ class DasiKey(dict):
 
     @classmethod
     def from_stac(cls, source: str, item: Item, asset_name: str | None = None) -> Self:
-        return cls.from_product_id(source, item.id, asset_name)
+        key = cls.from_product_id(source, item.id, asset_name)
+        if asset_name is not None:
+            key["mediatype"] = _sanitize(item.assets[asset_name].media_type)
+        return key
 
     @classmethod
     def _from_s2(cls, source: str, stem: str, asset_name: str | None) -> Self:

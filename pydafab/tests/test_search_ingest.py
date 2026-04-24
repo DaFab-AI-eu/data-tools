@@ -5,7 +5,7 @@ Unit tests for Copernicus search and ingest functionality.
 import pytest
 from unittest.mock import MagicMock, patch
 from pydafab.copernicus import CopernicusIngestor
-from pydafab.dasi_key import DasiKey
+from pydafab.dasi_copernicus import CopernicusKey
 from pydafab.ingest_tool import DasiProductHandler
 
 
@@ -24,14 +24,17 @@ def dummy_product():
             "processing:datetime": "2025-01-23T23:09:11",
             "datetime": "2025-01-23T23:09:11",
         }
-        assets = {"TCI_20m": MagicMock(), "WVP_10m": MagicMock()}
+        assets = {
+            "TCI_20m": MagicMock(media_type="image/jp2"),
+            "WVP_10m": MagicMock(media_type="image/jp2"),
+        }
         self_href = "http://example.com/product.json"
 
     return DummyProduct()
 
 
 def test_make_key_from_product(dummy_product):
-    key = DasiKey.from_stac("CDSE", dummy_product)
+    key = CopernicusKey.from_stac("CDSE", dummy_product)
     assert key["source"] == "CDSE"
     assert key["platform"] == "S2C"
     assert key["procdate"] == "20250124T013809"
@@ -40,8 +43,9 @@ def test_make_key_from_product(dummy_product):
 
 
 def test_make_asset_key_from_product(dummy_product):
-    key = DasiKey.from_stac("CDSE", dummy_product, "TCI_20m")
+    key = CopernicusKey.from_stac("CDSE", dummy_product, "TCI_20m")
     assert key["asset_name"] == "TCI_20m"
+    assert key["mediatype"] == "image_jp2"
 
 
 @patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
@@ -76,7 +80,9 @@ def test_archive_product_and_assets(mock_dasi, mock_init, dummy_product, tmp_pat
         ingestor.source = "CDSE"
         tool = DasiProductHandler(ingestor, str(tmp_path))
         ingestor.fetch_product = MagicMock(return_value=({"key": "val"}, b"data"))
-        ingestor.fetch_asset = MagicMock(return_value=({"key": "val"}, b"data"))
+        ingestor.fetch_asset = MagicMock(
+            return_value=(MagicMock(media_type="image/jp2"), b"data")
+        )
         tool.archive_product(dummy_product)
         tool.archive_assets(dummy_product, ["TCI_20m", "WVP_10m"])
         assert mock_dasi.return_value.archive.call_count == 3
