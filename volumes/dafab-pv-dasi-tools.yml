@@ -12,8 +12,11 @@ spec:
     - ReadOnlyMany
   persistentVolumeReclaimPolicy: Retain
   storageClassName: dasi-storage
-  local:
-    path: /mnt/dasi/tools
+  nfs:
+    path: /mnt/store/nfs/files/private/dafab/dasi/tools
+    server: 10.40.11.18
+  # local:
+  #   path: /mnt/dasi/tools
   nodeAffinity:
     required:
       nodeSelectorTerms:

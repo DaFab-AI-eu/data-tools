@@ -6,14 +6,17 @@ metadata:
     type: dasi-storage
 spec:
   capacity:
-    storage: 480Gi
+    storage: 6Ti
   volumeMode: Filesystem
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
   storageClassName: dasi-storage
-  local:
-    path: /mnt/dasi
+  nfs:
+    path: /mnt/store/nfs/files/private/dafab/dasi
+    server: 10.40.11.18
+  # local:
+  #   path: /mnt/dasi
   nodeAffinity:
     required:
       nodeSelectorTerms:
