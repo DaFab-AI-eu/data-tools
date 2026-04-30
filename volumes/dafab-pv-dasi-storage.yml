@@ -9,19 +9,9 @@ spec:
     storage: 6Ti
   volumeMode: Filesystem
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
   storageClassName: dasi-storage
   nfs:
     path: /mnt/store/nfs/files/private/dafab/dasi
     server: 10.40.11.18
-  # local:
-  #   path: /mnt/dasi
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-        - matchExpressions:
-            - key: kubernetes.io/hostname
-              operator: In
-              values:
-                - knot

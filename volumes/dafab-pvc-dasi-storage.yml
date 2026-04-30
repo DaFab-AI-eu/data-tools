@@ -4,7 +4,7 @@ metadata:
   name: dasi-pvc-storage
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 480Gi
