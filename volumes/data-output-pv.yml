@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: data-output-pv
+  labels:
+    type: data-output
+spec:
+  capacity:
+    storage: 6Ti
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: data-output
+  nfs:
+    path: /mnt/store/nfs/files/private/dafab/data
+    server: 10.40.11.18
