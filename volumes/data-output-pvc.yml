@@ -8,3 +8,4 @@ spec:
   resources:
     requests:
       storage: 6Ti
+  storageClassName: data-output
