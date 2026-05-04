@@ -11,8 +11,10 @@ from typing import Any, Iterator, Optional
 
 from pystac import Item
 from pystac_client import Client
+from pystac_client.stac_api_io import StacApiIO
+from urllib3.util import Retry
 
-from .errors import ProductNotFoundError, AssetNotFoundError
+from .errors import AssetNotFoundError
 from .helpers import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -34,9 +36,17 @@ class StacIngestor:
     """Base class for data ingestion functionality."""
 
     def __init__(self, stac_catalog: str, s3_endpoint: str, verbose: bool = False):
-        # from .helpers import log_request
-        # self.catalog = Client.open(url=stac_catalog, timeout=PYSTAC_TIMEOUT, request_modifier=log_request)
-        self.catalog = Client.open(url=stac_catalog, timeout=PYSTAC_TIMEOUT)
+        retry = Retry(
+            total=5,
+            backoff_factor=8,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods={"GET", "POST"},
+            respect_retry_after_header=True,
+            retry_after_max=300,
+        )
+        stac_io = StacApiIO(timeout=PYSTAC_TIMEOUT, max_retries=retry)
+        self.catalog = Client.open(url=stac_catalog, stac_io=stac_io)
+        self._session = stac_io.session
         self.s3_endpoint = s3_endpoint
         self.verbose = verbose
         self.source = "unknown"
@@ -85,7 +95,7 @@ class StacIngestor:
             collections: Collection IDs to search within. Required by some STAC APIs.
 
         Returns:
-            The product if found, otherwise None.
+            The matching product, or ``None`` if no item with ``product_id`` exists.
         """
 
         logger.debug(f"Finding product with ID: {product_id}")
@@ -100,25 +110,21 @@ class StacIngestor:
 
         return product
 
-    def fetch_product(self, product: Item):
+    def fetch_product(self, product: Item) -> bytes:
         """
-        Fetch a product and return its metadata key and data content
+        Fetch a product and return its raw metadata bytes.
 
         :param self: The StacIngestor instance
         :param product: The product item to fetch
-        :return: A tuple containing the product metadata key and the downloaded data
-        :rtype: tuple[dict[str, str], bytes]
+        :return: The downloaded product metadata
+        :rtype: bytes
         """
 
         logger.debug(f"Fetching product: {product.id}")
 
-        if product is None:
-            raise ProductNotFoundError
-
-        from urllib.request import urlopen
-
-        with urlopen(product.self_href) as response:
-            data = response.read()
+        response = self._session.get(product.self_href, timeout=PYSTAC_TIMEOUT)
+        response.raise_for_status()
+        data = response.content
 
         logger.debug(f"Fetched product: {product.id}, size: {len(data)} bytes")
 
@@ -135,11 +141,8 @@ class StacIngestor:
         :rtype: tuple[dict[str, str], bytes]
         """
 
-        if product is None:
-            raise ProductNotFoundError
-
         if asset_key not in product.assets:
-            raise AssetNotFoundError
+            raise AssetNotFoundError(asset_key)
 
         logger.debug(f"Fetching asset: {asset_key} from product: {product.id}")
 
@@ -148,7 +151,7 @@ class StacIngestor:
         data = self._fetch_s3(asset.href)
 
         if data is None:
-            raise AssetNotFoundError
+            raise AssetNotFoundError(asset_key)
         else:
             logger.debug(f"Fetched asset: {asset_key} from product: {product.id}, size: {len(data)} bytes")
 
