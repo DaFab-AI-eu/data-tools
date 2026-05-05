@@ -40,7 +40,8 @@ Sentinel-1 compact name (9 tokens):
 
 
 def _sanitize(value: object) -> str:
-    return str(value).replace("/", "_").replace(":", "_")
+    s = str(value).split(";", 1)[0]
+    return s.replace("/", "_").replace(":", "_")
 
 
 class CopernicusKey(dict):
@@ -68,17 +69,18 @@ class CopernicusKey(dict):
         parts = stem.split("_")
         if len(parts) != 7:
             raise ValueError(f"Invalid Sentinel-2 product ID: {stem}")
-        mission, _level, datatake, baseline, orbit, tile, discriminator = parts
+        mission, level, datatake, baseline, orbit, tile, discriminator = parts
         dt = datetime.strptime(datatake, "%Y%m%dT%H%M%S")
         key = cls(
             source=_sanitize(source),
-            platform=mission,
-            procver=f"{baseline[1:3]}.{baseline[3:5]}",  # Nxxyy
+            mission=mission,
+            level=level,
             gridcode=tile,
+            procver=f"{baseline[1:3]}.{baseline[3:5]}",  # Nxxyy
             takedate=dt.strftime("%Y-%m-%d"),
             taketime=dt.strftime("%H%M%S"),
-            orbit=str(int(orbit[1:])),  # ROOO
             procdate=discriminator,
+            orbit=str(int(orbit[1:])),  # ROOO
         )
         if asset_name is not None:
             key["asset_name"] = _sanitize(asset_name)
@@ -93,14 +95,14 @@ class CopernicusKey(dict):
         dt = datetime.strptime(start, "%Y%m%dT%H%M%S")
         key = cls(
             source=_sanitize(source),
-            platform=mission,
+            mission=mission,
             mode=mode,
             type=type_res,
-            polarization=lcp[2:],  # LFPP
             takedate=dt.strftime("%Y-%m-%d"),
+            polarization=lcp[2:],  # LFPP
             taketime=dt.strftime("%H%M%S"),
-            orbit=str(int(abs_orbit)),  # OOOOOO
             datatake=datatake,
+            orbit=str(int(abs_orbit)),  # OOOOOO
         )
         if asset_name is not None:
             key["asset_name"] = _sanitize(asset_name)

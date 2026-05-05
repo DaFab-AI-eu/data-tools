@@ -1,11 +1,17 @@
-# Sentinel product metadata
-
 # Sentinel-2
-[ source, platform=S2A/S2B/S2C
-    [ procver, gridcode, takedate, taketime, procdate
+# Example: S2A_MSIL2A_20250322T103741_N0511_R008_T32ULB_20250322T161215
+#   dir:  CDSE:S2A:MSIL2A:T32ULB
+#   file: 05.11:2025-03-22:103741:20250322T161215
+#   key:  8
+[ source, mission=S2A/S2B/S2C, level, gridcode
+    [ procver, takedate, taketime, procdate
         [ orbit ]]]
 
 # Sentinel-1
-[ source, platform=S1A/S1B/S1C
-    [ mode, type, polarization, takedate, taketime
-        [ orbit, datatake ]]]
+# Example: S1A_IW_GRDH_1SDV_20230516T152430_20230516T152455_123456_ABCDEF_1234
+#   dir:  CDSE:S1A:IW:GRDH:2023-05-16
+#   file: DV:152430:ABCDEF
+#   key:  123456
+[ source, mission=S1A/S1B/S1C, mode, type, takedate
+    [ polarization, taketime, datatake
+        [ orbit ]]]
