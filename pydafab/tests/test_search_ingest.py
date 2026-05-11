@@ -36,10 +36,14 @@ def dummy_product():
 def test_make_key_from_product(dummy_product):
     key = CopernicusKey.from_stac("CDSE", dummy_product)
     assert key["source"] == "CDSE"
-    assert key["platform"] == "S2C"
+    assert key["mission"] == "S2C"
+    assert key["level"] == "MSIL2A"
+    assert key["gridcode"] == "T01UBS"
+    assert key["procver"] == "05.11"
     assert key["procdate"] == "20250124T013809"
     assert key["takedate"] == "2025-01-23"
     assert key["taketime"] == "230911"
+    assert key["orbit"] == "44"
 
 
 def test_make_asset_key_from_product(dummy_product):
