@@ -45,6 +45,9 @@ def _sanitize(value: object) -> str:
 
 
 class CopernicusKey(dict):
+    def to_dasi_query(self) -> dict:
+        """Convert to DASI query format. archive() takes scalars, list/retrieve() need lists."""
+        return {k: [v] for k, v in self.items()}
 
     @classmethod
     def from_product_id(
