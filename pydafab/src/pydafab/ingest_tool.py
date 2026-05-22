@@ -31,12 +31,15 @@ class DasiProductHandler:
         return CopernicusKey.from_product_id(self.ingestor.source, product_id, asset_name).to_dasi_query()
 
     def _product_archived(self, product_id: str) -> bool:
-        return any(True for _ in self.dasi_metadata.list(self._build_query(product_id)))
+        found = False
+        for _ in self.dasi_metadata.list(self._build_query(product_id)):
+            found = True
+        return found
 
     def _list_assets(self, product_id: str) -> set[str]:
         existing = set()
         for item in self.dasi_assets.list(self._build_query(product_id)):
-            if 'asset_name' in item.key:
+            if item.key.has('asset_name'):
                 existing.add(item.key['asset_name'])
         return existing
 
@@ -139,6 +142,33 @@ class DasiProductHandler:
         Yields:
             Tuples of (asset_name, dasi_key, asset_data) per matching asset.
         """
-        for asset_name in asset_names:
-            for item in self.dasi_assets.retrieve(self._build_query(product_id, asset_name)):
-                yield asset_name, item.key, item.data
+        base_query = self._build_query(product_id)
+
+        available: dict[str, str] = {}
+        for item in self.dasi_assets.list(base_query):
+            name = item.key['asset_name']
+            mediatype = item.key['mediatype']
+            if name in available:
+                assert available[name] == mediatype, (
+                    f"Multiple mediatypes for {product_id}/{name}: {available[name]!r}, {mediatype!r}"
+                )
+            available[name] = mediatype
+
+        missing = sorted(set(asset_names) - available.keys())
+        if missing:
+            logger.error(
+                "Asset(s) not found in DASI for product %s: %s",
+                product_id, ", ".join(missing)
+            )
+
+        wanted = {name: available[name] for name in asset_names if name in available}
+        if not wanted:
+            return
+
+        full_query = {
+            **base_query,
+            'asset_name': list(wanted),
+            'mediatype': sorted(set(wanted.values())),
+        }
+        for r in self.dasi_assets.retrieve(full_query):
+            yield r.key['asset_name'], r.key, r.data
