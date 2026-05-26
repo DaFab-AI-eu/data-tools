@@ -13,4 +13,6 @@ RUN set -ex; \
     # poetry config virtualenvs.create false && \
     # poetry install --no-interaction --no-ansi
 
+
+COPY ./copernicus /tools/copernicus
 WORKDIR /tools

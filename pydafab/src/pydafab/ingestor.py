@@ -14,7 +14,7 @@ from pystac_client import Client
 from pystac_client.stac_api_io import StacApiIO
 from urllib3.util import Retry
 
-from .errors import AssetNotFoundError
+from .errors import AssetNotFoundError, ProductNotFoundError
 from .helpers import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -87,7 +87,7 @@ class StacIngestor:
 
         return self.catalog.search(**params).items()
 
-    def search_product(self, product_id: str, collections: list[str] | None = None) -> Optional[Item]:
+    def search_product(self, product_id: str, collections: list[str] | None = None) -> Item:
         """Retrieve a product from the catalog by its product ID.
 
         Args:
@@ -95,7 +95,10 @@ class StacIngestor:
             collections: Collection IDs to search within. Required by some STAC APIs.
 
         Returns:
-            The matching product, or ``None`` if no item with ``product_id`` exists.
+            The matching product.
+
+        Raises:
+            ProductNotFoundError: If no item with ``product_id`` exists in the catalog.
         """
 
         logger.debug(f"Finding product with ID: {product_id}")
@@ -106,7 +109,10 @@ class StacIngestor:
 
         product = next(self.catalog.search(**search_params).items(), None)
 
-        logger.debug(f"Found product: {product.self_href if product else 'None'}")
+        if product is None:
+            raise ProductNotFoundError(product_id)
+
+        logger.debug(f"Found product: {product.self_href}")
 
         return product
 

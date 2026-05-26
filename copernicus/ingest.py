@@ -10,7 +10,7 @@ import sys
 
 import helpers
 
-from pydafab import CopernicusIngestor, DasiProductHandler
+from pydafab import CopernicusIngestor, DasiProductHandler, ProductNotFoundError
 
 
 __copyright__ = "Copyright 2025, ECMWF"
@@ -59,18 +59,18 @@ def main():
 
     ingestor = CopernicusIngestor(verbose=args.verbose)
 
-    product = ingestor.search_product(args.product_id, collections=[args.collections])
+    try:
+        product = ingestor.search_product(args.product_id, collections=[args.collections])
 
-    if product is None:
-        sys.exit(f"Product [{args.product_id}] not found!")
+        handler = DasiProductHandler(ingestor, args.config_dir)
 
-    handler = DasiProductHandler(ingestor, args.config_dir)
+        modifier = helpers.ProductModifier()
 
-    modifier = helpers.ProductModifier()
+        handler.archive_product(product, modifier)
 
-    handler.archive_product(product, modifier)
-
-    handler.archive_assets(product, args.asset_names.split(","), modifier)
+        handler.archive_assets(product, args.asset_names.split(","), modifier)
+    except ProductNotFoundError as e:
+        sys.exit(str(e))
 
 
 if __name__ == "__main__":
