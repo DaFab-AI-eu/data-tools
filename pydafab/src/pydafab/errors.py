@@ -3,8 +3,6 @@
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
 __version__ = "0.0.1"
-__author__ = "Metin Cakircali"
-__email__ = "metin.cakircali@ecmwf.int"
 
 
 class InvalidArgumentError(ValueError):

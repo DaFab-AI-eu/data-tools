@@ -2,7 +2,7 @@
 name = "pydafab"
 version = "0.1.0"
 description = "Python package for data tools at DaFab EU project."
-authors = ["Metin Cakircali"]
+authors = ["Metin Cakircali", "Joshua Harwood"]
 license = "Apache License 2.0"
 readme = "README.md"
 

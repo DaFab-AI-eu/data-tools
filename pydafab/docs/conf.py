@@ -7,8 +7,8 @@
 # -- Project information -----------------------------------------------------
 
 project = u"pydafab"
-copyright = u"2025, Metin Cakircali"
-author = u"Metin Cakircali"
+copyright = u"2025, ECMWF"
+author = u"Metin Cakircali, Joshua Harwood"
 
 # -- General configuration ---------------------------------------------------
 

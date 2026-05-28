@@ -14,5 +14,4 @@ $ pip install pydafab
 
 ## License
 
-`pydafab` was created by Metin Cakircali. It is licensed under the terms of the Apache License 2.0 license.
-
+`pydafab` is licensed under the terms of the Apache License 2.0 license.
