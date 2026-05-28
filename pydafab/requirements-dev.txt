@@ -1,0 +1,5 @@
+pytest>=8.0.0
+myst-nb
+sphinx-autoapi
+sphinx-rtd-theme
+ruff

@@ -1,36 +1,66 @@
 # DaFab Data Tools
 
-`pydafab` is a Python package that provides tools for accessing and archiving data from the Copernicus Data Space using STAC (SpatioTemporal Asset Catalog) standards. It leverages the Dasi data management tool (pydasi) for efficient data ingestion and management.
+`pydafab` is a Python package that provides tools for accessing and archiving data from the Copernicus Data Space using STAC (SpatioTemporal Asset Catalog) standards. It leverages the Dasi data management tool (`pydasi`) for efficient data ingestion and management.
 
-## Installation
+## Installation (recommended: uv + just)
 
-Here's how to install and set up `pydafab`:
+This project uses `uv` as the package manager and `just` for simple developer commands. `uv` provides fast resolution, a `.venv` workflow, and `pip`-compatible commands.
 
-1. Download a copy of `pydafab` locally.
+1. Clone the repository:
 
-```console
-$ git clone https://github.com/yourusername/pydafab.git
-$ cd pydafab
+```bash
+git clone https://github.com/yourusername/pydafab.git
+cd pydafab
 ```
 
-2. Create and activate a virtual environment for `pydafab`:
+2. Install `uv` (one-time):
 
-    ```console
-    $ python -m venv .venv
-    $ source .venv/bin/activate
-    ```
+```bash
+# via the installer
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# or via pipx
+pipx install uv
+```
 
-3. Install `pydafab`:
+3. Install `just` (if not already installed).
 
-    ```console
-    $ pip install pydafab
-    ```
+```bash
+# via the installer
+curl -LsSf https://just.systems/install.sh | sh
+# or via package manager, e.g. on Ubuntu
+sudo apt install just
+```
+
+4. Set up the project environment and install dependencies:
+
+```bash
+# uses the Justfile to create .venv, compile/sync requirements, and install editable
+just setup
+
+# activate when needed
+source .venv/bin/activate
+
+# run tests
+just test
+```
+
+## Alternative: plain venv + pip
+
+If you prefer not to use `uv`, the repo also provides `requirements.txt` and `requirements-dev.txt` at the project root. Create a virtualenv and install with `pip`:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install -r requirements-dev.txt   # optional
+pip install -e pydafab
+```
 
 ## Configuration
 
 Requires Copernicus credentials via environment variables.
 
-**Local Development:** 
+**Local Development:**
 
 Edit dev.env with your credentials
 
@@ -65,32 +95,27 @@ templates:
 ```
 
 ## Usage
-Here's a simple example of how to use `pydafab` to search for and archive products from the Copernicus Data Space:
+
+Example (after installing and activating `.venv`):
 
 ```python
 from pydafab import CopernicusIngestor, IngestTool
 
-# Create an instance of the CopernicusIngestor
 ingestor = CopernicusIngestor()
-
-# Create an instance of the IngestTool
 ingest_tool = IngestTool(ingestor)
 
-# Define search parameters
 search_params = {
-    "max_items": 10,
-    "collections": "sentinel-2-l2a",
-    "bbox": [6.95, 50.65, 7.25, 50.85],
-    "datetime": "2025-01-21/2025-01-23",
-    "cloud_cover_max": 100,
+  "max_items": 10,
+  "collections": "sentinel-2-l2a",
+  "bbox": [6.95, 50.65, 7.25, 50.85],
+  "datetime": "2025-01-21/2025-01-23",
+  "cloud_cover_max": 100,
 }
 
-# Search for products
 products = ingestor.search(search_params)
 
-# Archive each product
 for product in products:
-    ingest_tool.archive_product(product)
+  ingest_tool.archive_product(product)
 ```
 
 ## Code of Conduct

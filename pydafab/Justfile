@@ -1,0 +1,42 @@
+set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
+
+# Create a project virtualenv using uv
+venv:
+	uv venv --python 3.12
+
+# Compile project dependencies
+compile:
+	uv pip compile pyproject.toml -o requirements.txt
+
+# Sync the locked requirements into .venv
+sync:
+	uv pip sync requirements.txt
+
+# Install the project in editable mode
+dev:
+	uv pip install -e .
+
+# Create venv, compile, sync, dev
+setup:
+	@echo "Setting up project"
+	just venv
+	-just compile
+	just sync
+	just dev
+
+# Linting
+check:
+	uv run ruff check src tests
+
+# Run tests
+test: check
+	uv run pytest -q
+
+# Run an interactive shell
+shell:
+	@echo "Activate with: source .venv/bin/activate"
+	uv run -- python -c "import code, os; os.environ.pop('PYTHONSTARTUP', None); code.interact()"
+
+# Clean build artifacts and virtualenv
+clean:
+	rm -rf .venv build dist *.egg-info __pycache__ src/**/__pycache__

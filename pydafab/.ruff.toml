@@ -1,0 +1,7 @@
+line-length = 120
+exclude = [".venv", "build", "dist", "docs/_build"]
+src = ["src", "pydafab"]
+
+# Enable commonly useful rules; keep default behaviour otherwise
+# You can add ignore/select codes below if needed, e.g.:
+# extend-ignore = ["E203", "W503"]
