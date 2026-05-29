@@ -2,6 +2,14 @@
 
 `pydafab` is a Python package that provides tools for accessing and archiving data from the Copernicus Data Space using STAC (SpatioTemporal Asset Catalog) standards. It leverages the Dasi data management tool (`pydasi`) for efficient data ingestion and management.
 
+## Repository layout
+
+- `copernicus/`: helper modules and ingest/search/stage scripts for Copernicus data.
+- `pydafab/` and `src/pydafab/`: the Python package sources and project metadata.
+- `tests/`: unit and integration tests.
+- `rucio/`, `scripts/`, `volumes/`: deployment, storage and auxiliary scripts/configs.
+- `Dockerfile`, `Justfile`, and CI-related files at the repository root.
+
 ## Installation (recommended: uv + just)
 
 This project uses `uv` as the package manager and `just` for simple developer commands. `uv` provides fast resolution, a `.venv` workflow, and `pip`-compatible commands.

@@ -9,7 +9,7 @@ description = "Python package for data tools at DaFab EU project."
 readme = "README.md"
 authors = [{name = "Metin Cakircali"}, {name = "Joshua Harwood"}]
 license = {text = "Apache License 2.0"}
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
 	"pydasi>=0.2.8",
 	"pystac>1.12",
