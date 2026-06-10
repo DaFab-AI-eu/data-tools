@@ -154,10 +154,7 @@ class DasiProductHandler:
 
         missing = sorted(set(asset_names) - available.keys())
         if missing:
-            logger.error(
-                "Asset(s) not found in DASI for product %s: %s",
-                product_id, ", ".join(missing)
-            )
+            raise AssetNotFoundError(", ".join(missing), product_id)
 
         wanted = {name: available[name] for name in asset_names if name in available}
         if not wanted:

@@ -123,6 +123,18 @@ def test_archive_assets_raises_on_fetch_failure(mock_dasi, mock_init, dummy_prod
             tool.archive_assets(dummy_product, ["TCI_20m", "WVP_10m"])
 
 
+@patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
+@patch("pydafab.ingest_tool.Dasi")
+def test_retrieve_assets_raises_on_missing_asset(mock_dasi, mock_init, dummy_product, tmp_path):
+    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
+        ingestor = CopernicusIngestor()
+        ingestor.source = "CDSE"
+        tool = DasiProductHandler(ingestor, str(tmp_path))
+
+        with pytest.raises(AssetNotFoundError):
+            list(tool.retrieve_assets(dummy_product.id, ["NOT_A_REAL_BAND"]))
+
+
 def test_fetch_s3_raises_on_boto_error():
     with patch.object(CopernicusIngestor, "__init__", lambda self: None):
         ingestor = CopernicusIngestor()
