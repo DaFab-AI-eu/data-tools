@@ -10,7 +10,14 @@ import sys
 
 import helpers
 
-from pydafab import CopernicusIngestor, DasiProductHandler, ProductNotFoundError
+from pydafab import (
+    AssetFetchError,
+    AssetNotFoundError,
+    CopernicusIngestor,
+    DasiProductHandler,
+    ProductFetchError,
+    ProductNotFoundError,
+)
 
 
 __copyright__ = "Copyright 2025, ECMWF"
@@ -68,8 +75,9 @@ def main():
 
         handler.archive_product(product, modifier)
 
-        handler.archive_assets(product, args.asset_names.split(","), modifier)
-    except ProductNotFoundError as e:
+        requested = [name for name in args.asset_names.split(",") if name]
+        handler.archive_assets(product, requested, modifier)
+    except (ProductNotFoundError, ProductFetchError, AssetNotFoundError, AssetFetchError) as e:
         sys.exit(str(e))
 
 

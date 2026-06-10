@@ -81,38 +81,36 @@ class DasiProductHandler:
 
         logger.debug("Archiving assets of product: %s with names: %s", product.id, asset_names)
 
+        missing = sorted(name for name in asset_names if name not in product.assets)
+        if missing:
+            raise AssetNotFoundError(", ".join(missing))
+
         existing_assets = self._list_assets(product.id)
-        existing_requested = existing_assets & set(asset_names)
+        skipped = existing_assets & set(asset_names)
         assets_to_fetch = [name for name in asset_names if name not in existing_assets]
 
-        if existing_requested:
+        if skipped:
             logger.info(
                 "Skipping %d existing asset(s) for product %s: %s",
-                len(existing_requested),
+                len(skipped),
                 product.id,
-                ", ".join(sorted(existing_requested))
+                ", ".join(sorted(skipped)),
             )
 
-        archived_any = False
-        for asset_name in assets_to_fetch:
-            try:
+        try:
+            for asset_name in assets_to_fetch:
                 _asset, data = self.ingestor.fetch_asset(product, asset_name)
                 key = CopernicusKey.from_stac(self.ingestor.source, product, asset_name)
-            except AssetNotFoundError:
-                logger.warning("Asset [%s] not found in product [%s]!", asset_name, product.id)
-                continue
 
-            logger.debug("Archiving asset: %s with DASI key: %s", asset_name, key)
+                logger.debug("Archiving asset: %s with DASI key: %s", asset_name, key)
 
-            if modifier:
-                data = modifier.modify_asset(key, data)
+                if modifier:
+                    data = modifier.modify_asset(key, data)
 
-            self.dasi_assets.archive(key, data)
-            archived_any = True
+                self.dasi_assets.archive(key, data)
 
-            logger.info("Archived asset: %s", asset_name)
-
-        if archived_any:
+                logger.info("Archived asset: %s", asset_name)
+        finally:
             self.dasi_assets.flush()
 
     def retrieve_metadata(self, product_id: str) -> Iterator[bytes]:

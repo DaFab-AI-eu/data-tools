@@ -39,3 +39,27 @@ class AssetNotFoundError(RuntimeError):
     def name(self):
         (name,) = self.args
         return name
+
+
+class AssetFetchError(RuntimeError):
+    """Fetching the Asset failed."""
+
+    def __str__(self):
+        return f"Failed to fetch Asset from {self.name}: {self.__cause__}"
+
+    @property
+    def name(self):
+        (name,) = self.args
+        return name
+
+
+class ProductFetchError(RuntimeError):
+    """Fetching the Product failed."""
+
+    def __str__(self):
+        return f"Failed to fetch Product {self.name}: {self.__cause__}"
+
+    @property
+    def name(self):
+        (name,) = self.args
+        return name
