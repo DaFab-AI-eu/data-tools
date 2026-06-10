@@ -83,7 +83,7 @@ class DasiProductHandler:
 
         missing = sorted(name for name in asset_names if name not in product.assets)
         if missing:
-            raise AssetNotFoundError(", ".join(missing))
+            raise AssetNotFoundError(", ".join(missing), product.id)
 
         existing_assets = self._list_assets(product.id)
         skipped = existing_assets & set(asset_names)

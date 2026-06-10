@@ -152,7 +152,7 @@ class StacIngestor:
         """
 
         if asset_key not in product.assets:
-            raise AssetNotFoundError(asset_key)
+            raise AssetNotFoundError(asset_key, product.id)
 
         logger.debug(f"Fetching asset: {asset_key} from product: {product.id}")
 
