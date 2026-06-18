@@ -9,6 +9,7 @@ import argparse
 import sys
 
 import helpers
+from logging_setup import setup_logging
 
 from pydafab import CopernicusIngestor, DasiProductHandler, ProductNotFoundError
 
@@ -56,6 +57,8 @@ def main():
     """Ingest product from Copernicus STAC and archive using Dasi."""
 
     args = parse_arguments()
+
+    setup_logging(args.verbose)
 
     ingestor = CopernicusIngestor(verbose=args.verbose)
 
