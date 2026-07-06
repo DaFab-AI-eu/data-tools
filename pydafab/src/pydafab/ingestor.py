@@ -16,7 +16,6 @@ from requests import RequestException
 from urllib3.util import Retry
 
 from .errors import AssetFetchError, AssetNotFoundError, ProductFetchError, ProductNotFoundError
-from .helpers import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +50,6 @@ class StacIngestor:
         self.s3_endpoint = s3_endpoint
         self.verbose = verbose
         self.source = "unknown"
-        setup_logging(self.verbose)
 
     def __repr__(self) -> str:
         return f"<StacIngestor:verbose={self.verbose}>"
@@ -60,7 +58,7 @@ class StacIngestor:
         import boto3
         from botocore.config import Config
 
-        logger.debug(f"Fetching S3 object from {href} using endpoint {self.s3_endpoint}")
+        logger.debug("Fetching S3 object from %s using endpoint %s", href, self.s3_endpoint)
 
         s3_config = Config(
             connect_timeout=S3_CONNECT_TIMEOUT,
@@ -102,7 +100,7 @@ class StacIngestor:
             ProductNotFoundError: If no item with ``product_id`` exists in the catalog.
         """
 
-        logger.debug(f"Finding product with ID: {product_id}")
+        logger.debug("Finding product with ID: %s", product_id)
 
         search_params: dict[str, Any] = {"ids": [product_id]}
         if collections:
@@ -113,7 +111,7 @@ class StacIngestor:
         if product is None:
             raise ProductNotFoundError(product_id)
 
-        logger.debug(f"Found product: {product.self_href}")
+        logger.debug("Found product: %s", product.self_href)
 
         return product
 
@@ -127,7 +125,7 @@ class StacIngestor:
         :rtype: bytes
         """
 
-        logger.debug(f"Fetching product: {product.id}")
+        logger.debug("Fetching product: %s", product.id)
 
         try:
             response = self._session.get(product.self_href, timeout=PYSTAC_TIMEOUT)
@@ -136,7 +134,7 @@ class StacIngestor:
         except RequestException as e:
             raise ProductFetchError(product.id) from e
 
-        logger.debug(f"Fetched product: {product.id}, size: {len(data)} bytes")
+        logger.debug("Fetched product: %s, size: %d bytes", product.id, len(data))
 
         return data
 
@@ -154,12 +152,17 @@ class StacIngestor:
         if asset_key not in product.assets:
             raise AssetNotFoundError(asset_key, product.id)
 
-        logger.debug(f"Fetching asset: {asset_key} from product: {product.id}")
+        logger.debug("Fetching asset: %s from product: %s", asset_key, product.id)
 
         asset = product.assets[asset_key]
 
         data = self._fetch_s3(asset.href)
 
-        logger.debug(f"Fetched asset: {asset_key} from product: {product.id}, size: {len(data)} bytes")
+        logger.debug(
+            "Fetched asset: %s from product: %s, size: %d bytes",
+            asset_key,
+            product.id,
+            len(data),
+        )
 
         return asset, data

@@ -11,10 +11,13 @@ import argparse
 import logging
 from json import dump
 
+from logging_setup import setup_logging
 from pydafab import CopernicusIngestor
 
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
+
+logger = logging.getLogger(__name__)
 
 
 def parse_arguments():
@@ -74,6 +77,8 @@ def main():
 
     args = parse_arguments()
 
+    setup_logging(args.verbose)
+
     params = {
         "max_items": args.max_items,
         "collections": args.collections,
@@ -86,7 +91,7 @@ def main():
 
     for product in CopernicusIngestor(verbose=args.verbose).search(params):
         products.append(product.id)
-        logging.debug(f"Found product ID: {product.id}")
+        logger.debug("Found product ID: %s", product.id)
 
     # Save found products to a JSON file
     with open(args.output_file, mode="w") as f:
