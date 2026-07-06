@@ -7,14 +7,15 @@ This module provides the base class for retrieving products and their assets fro
 
 import logging
 
-from typing import Any, Iterator, Optional
+from typing import Any, Iterator
 
 from pystac import Item
 from pystac_client import Client
 from pystac_client.stac_api_io import StacApiIO
+from requests import RequestException
 from urllib3.util import Retry
 
-from .errors import AssetNotFoundError, ProductNotFoundError
+from .errors import AssetFetchError, AssetNotFoundError, ProductFetchError, ProductNotFoundError
 from .helpers import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -55,14 +56,16 @@ class StacIngestor:
     def __repr__(self) -> str:
         return f"<StacIngestor:verbose={self.verbose}>"
 
-    def _fetch_s3(self, href: str) -> Optional[bytes]:
+    def _fetch_s3(self, href: str) -> bytes:
         import boto3
         from botocore.config import Config
 
         logger.debug(f"Fetching S3 object from {href} using endpoint {self.s3_endpoint}")
 
         s3_config = Config(
-            connect_timeout=S3_CONNECT_TIMEOUT, read_timeout=S3_READ_TIMEOUT, retries={'max_attempts': S3_RETRYS}
+            connect_timeout=S3_CONNECT_TIMEOUT,
+            read_timeout=S3_READ_TIMEOUT,
+            retries={"max_attempts": S3_RETRYS, "mode": "standard"},
         )
 
         try:
@@ -71,9 +74,7 @@ class StacIngestor:
             response = s3.Object(bucket, key).get()["Body"]  # type: ignore
             return response.read()
         except Exception as e:
-            logger.warning(f"Failed to fetch S3 object from {href}: {e}")
-
-        return None
+            raise AssetFetchError(href) from e
 
     def search(self, params: dict[str, Any]) -> Iterator[Item]:
         """
@@ -128,9 +129,12 @@ class StacIngestor:
 
         logger.debug(f"Fetching product: {product.id}")
 
-        response = self._session.get(product.self_href, timeout=PYSTAC_TIMEOUT)
-        response.raise_for_status()
-        data = response.content
+        try:
+            response = self._session.get(product.self_href, timeout=PYSTAC_TIMEOUT)
+            response.raise_for_status()
+            data = response.content
+        except RequestException as e:
+            raise ProductFetchError(product.id) from e
 
         logger.debug(f"Fetched product: {product.id}, size: {len(data)} bytes")
 
@@ -148,7 +152,7 @@ class StacIngestor:
         """
 
         if asset_key not in product.assets:
-            raise AssetNotFoundError(asset_key)
+            raise AssetNotFoundError(asset_key, product.id)
 
         logger.debug(f"Fetching asset: {asset_key} from product: {product.id}")
 
@@ -156,9 +160,6 @@ class StacIngestor:
 
         data = self._fetch_s3(asset.href)
 
-        if data is None:
-            raise AssetNotFoundError(asset_key)
-        else:
-            logger.debug(f"Fetched asset: {asset_key} from product: {product.id}, size: {len(data)} bytes")
+        logger.debug(f"Fetched asset: {asset_key} from product: {product.id}, size: {len(data)} bytes")
 
         return asset, data
