@@ -3,9 +3,11 @@ Unit tests for Copernicus search and ingest functionality.
 """
 
 import pytest
+from requests import RequestException
 from unittest.mock import MagicMock, patch
 from pydafab.copernicus import CopernicusIngestor
 from pydafab.dasi_copernicus import CopernicusKey
+from pydafab.errors import AssetFetchError, AssetNotFoundError, ProductFetchError
 from pydafab.ingest_tool import DasiProductHandler
 
 
@@ -90,6 +92,66 @@ def test_archive_product_and_assets(mock_dasi, mock_init, dummy_product, tmp_pat
         tool.archive_product(dummy_product)
         tool.archive_assets(dummy_product, ["TCI_20m", "WVP_10m"])
         assert mock_dasi.return_value.archive.call_count == 3
+
+
+@patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
+@patch("pydafab.ingest_tool.Dasi")
+def test_archive_assets_raises_on_missing_asset(mock_dasi, mock_init, dummy_product, tmp_path):
+    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
+        ingestor = CopernicusIngestor()
+        ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
+        ingestor.source = "CDSE"
+        tool = DasiProductHandler(ingestor, str(tmp_path))
+
+        with pytest.raises(AssetNotFoundError):
+            tool.archive_assets(dummy_product, ["NOT_A_REAL_BAND"])
+
+        mock_dasi.return_value.archive.assert_not_called()
+
+
+@patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
+@patch("pydafab.ingest_tool.Dasi")
+def test_archive_assets_raises_on_fetch_failure(mock_dasi, mock_init, dummy_product, tmp_path):
+    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
+        ingestor = CopernicusIngestor()
+        ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
+        ingestor.source = "CDSE"
+        tool = DasiProductHandler(ingestor, str(tmp_path))
+        ingestor.fetch_asset = MagicMock(side_effect=AssetFetchError("s3://bucket/key"))
+
+        with pytest.raises(AssetFetchError):
+            tool.archive_assets(dummy_product, ["TCI_20m", "WVP_10m"])
+
+
+@patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
+@patch("pydafab.ingest_tool.Dasi")
+def test_retrieve_assets_raises_on_missing_asset(mock_dasi, mock_init, dummy_product, tmp_path):
+    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
+        ingestor = CopernicusIngestor()
+        ingestor.source = "CDSE"
+        tool = DasiProductHandler(ingestor, str(tmp_path))
+
+        with pytest.raises(AssetNotFoundError):
+            list(tool.retrieve_assets(dummy_product.id, ["NOT_A_REAL_BAND"]))
+
+
+def test_fetch_s3_raises_on_boto_error():
+    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
+        ingestor = CopernicusIngestor()
+        ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
+        with patch("boto3.resource", side_effect=Exception("connection refused")):
+            with pytest.raises(AssetFetchError):
+                ingestor._fetch_s3("s3://bucket/key")
+
+
+def test_fetch_product_raises_on_request_error(dummy_product):
+    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
+        ingestor = CopernicusIngestor()
+        ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
+        ingestor._session = MagicMock()
+        ingestor._session.get.side_effect = RequestException("connection reset")
+        with pytest.raises(ProductFetchError):
+            ingestor.fetch_product(dummy_product)
 
 
 def test_search_returns_dummy_product(dummy_product):

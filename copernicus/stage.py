@@ -12,7 +12,7 @@ import os
 import sys
 
 from logging_setup import setup_logging
-from pydafab import CopernicusIngestor, DasiProductHandler
+from pydafab import AssetNotFoundError, CopernicusIngestor, DasiProductHandler
 from pydafab.helpers import media_subtype
 
 __copyright__ = "Copyright 2025, ECMWF"
@@ -85,16 +85,19 @@ def main():
         sys.exit(f"Product [{args.product_id}] not found!")
 
     if args.asset_names:
-        for asset_name, key, data in handler.retrieve_assets(
-            args.product_id, args.asset_names.split(",")
-        ):
-            ext = media_subtype(key["mediatype"])
-            asset_output_file = os.path.join(
-                args.output_dir, f"{args.product_id}_{asset_name}.{ext}"
-            )
-            with open(asset_output_file, "wb") as of:
-                of.write(data)
-            logger.info("Asset [%s] saved to: %s", asset_name, asset_output_file)
+        try:
+            for asset_name, key, data in handler.retrieve_assets(
+                args.product_id, args.asset_names.split(",")
+            ):
+                ext = media_subtype(key["mediatype"])
+                asset_output_file = os.path.join(
+                    args.output_dir, f"{args.product_id}_{asset_name}.{ext}"
+                )
+                with open(asset_output_file, "wb") as of:
+                    of.write(data)
+                logger.info("Asset [%s] saved to: %s", asset_name, asset_output_file)
+        except AssetNotFoundError as e:
+            sys.exit(str(e))
 
 
 if __name__ == "__main__":

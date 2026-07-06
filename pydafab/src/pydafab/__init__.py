@@ -2,7 +2,13 @@
 import logging
 from importlib.metadata import version
 
-from .errors import InvalidArgumentError, ProductNotFoundError
+from .errors import (
+    AssetFetchError,
+    AssetNotFoundError,
+    InvalidArgumentError,
+    ProductFetchError,
+    ProductNotFoundError,
+)
 from .copernicus import CopernicusIngestor
 from .ingest_tool import DasiProductHandler
 from .helpers import media_subtype
@@ -12,7 +18,10 @@ __version__ = version("pydafab")
 logging.getLogger("pydafab").addHandler(logging.NullHandler())
 
 __all__ = [
+    "AssetFetchError",
+    "AssetNotFoundError",
     "InvalidArgumentError",
+    "ProductFetchError",
     "ProductNotFoundError",
     "CopernicusIngestor",
     "DasiProductHandler",
