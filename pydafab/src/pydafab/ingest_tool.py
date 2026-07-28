@@ -1,3 +1,4 @@
+import hashlib
 import logging
 from pathlib import Path
 from typing import Iterator, Any
@@ -8,7 +9,8 @@ from pydasi import Dasi
 from pydafab.dasi_copernicus import CopernicusKey
 
 from .copernicus import StacIngestor
-from .errors import AssetNotFoundError
+from .errors import AssetIntegrityError, AssetNotFoundError
+from .integrity import validate_asset_data
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +44,64 @@ class DasiProductHandler:
             if item.key.has('asset_name'):
                 existing.add(item.key['asset_name'])
         return existing
+
+    def _retrieve_asset_records(
+        self, dasi: Dasi, product_id: str, asset_names: list[str]
+    ) -> dict[str, tuple[dict, bytes]]:
+        base_query = self._build_query(product_id)
+        available: dict[str, set[str]] = {}
+        for item in dasi.list(base_query):
+            if item.key.has('asset_name'):
+                available.setdefault(item.key['asset_name'], set()).add(item.key['mediatype'])
+
+        missing = sorted(set(asset_names) - available.keys())
+        if missing:
+            raise AssetNotFoundError(", ".join(missing), product_id)
+
+        records: dict[str, tuple[dict, bytes]] = {}
+        for asset_name in dict.fromkeys(asset_names):
+            mediatypes = available[asset_name]
+            if len(mediatypes) != 1:
+                raise AssetIntegrityError(
+                    product_id,
+                    asset_name,
+                    f"expected one media type, found {len(mediatypes)}",
+                )
+
+            mediatype = next(iter(mediatypes))
+            query = self._build_query(product_id, asset_name)
+            query['mediatype'] = [mediatype]
+            try:
+                matches = list(dasi.retrieve(query))
+            except Exception as e:
+                raise AssetIntegrityError(product_id, asset_name, f"indexed payload is unreadable: {e}") from e
+
+            if len(matches) != 1:
+                raise AssetIntegrityError(
+                    product_id,
+                    asset_name,
+                    f"expected one payload, found {len(matches)}",
+                )
+
+            match = matches[0]
+            if match.key['asset_name'] != asset_name or match.key['mediatype'] != mediatype:
+                raise AssetIntegrityError(product_id, asset_name, "retrieved payload key does not match request")
+            if not match.data:
+                raise AssetIntegrityError(product_id, asset_name, "retrieved payload is empty")
+            records[asset_name] = (match.key, match.data)
+
+        return records
+
+    @staticmethod
+    def _validate_asset_records(product: Item, records: dict[str, tuple[dict, bytes]]) -> None:
+        for asset_name, (_key, data) in records.items():
+            validate_asset_data(
+                product.id,
+                asset_name,
+                product.assets[asset_name],
+                data,
+                "retrieved",
+            )
 
     def archive_product(self, product: Item, modifier: Any = None) -> None:
         """
@@ -85,9 +145,27 @@ class DasiProductHandler:
         if missing:
             raise AssetNotFoundError(", ".join(missing), product.id)
 
+        requested = list(dict.fromkeys(asset_names))
         existing_assets = self._list_assets(product.id)
-        skipped = existing_assets & set(asset_names)
-        assets_to_fetch = [name for name in asset_names if name not in existing_assets]
+        indexed = existing_assets & set(requested)
+        skipped: set[str] = set()
+        corrupt: set[str] = set()
+
+        for asset_name in sorted(indexed):
+            try:
+                existing_record = self._retrieve_asset_records(
+                    self.dasi_assets, product.id, [asset_name]
+                )
+                if modifier is None:
+                    self._validate_asset_records(product, existing_record)
+                skipped.add(asset_name)
+            except (AssetIntegrityError, AssetNotFoundError) as e:
+                logger.warning("Rearchiving corrupt indexed asset %s/%s: %s", product.id, asset_name, e)
+                corrupt.add(asset_name)
+
+        assets_to_fetch = [
+            name for name in requested if name not in existing_assets or name in corrupt
+        ]
 
         if skipped:
             logger.info(
@@ -97,6 +175,7 @@ class DasiProductHandler:
                 ", ".join(sorted(skipped)),
             )
 
+        archived: dict[str, tuple[int, str]] = {}
         try:
             for asset_name in assets_to_fetch:
                 _asset, data = self.ingestor.fetch_asset(product, asset_name)
@@ -107,11 +186,22 @@ class DasiProductHandler:
                 if modifier:
                     data = modifier.modify_asset(key, data)
 
+                archived[asset_name] = (len(data), hashlib.sha256(data).hexdigest())
                 self.dasi_assets.archive(key, data)
-
-                logger.info("Archived asset: %s", asset_name)
+                logger.debug("Buffered asset for archive: %s", asset_name)
         finally:
             self.dasi_assets.flush()
+
+        fresh_dasi = Dasi(str(self.config_dir / "assets.yml"))
+        records = self._retrieve_asset_records(fresh_dasi, product.id, requested)
+        if modifier is None:
+            self._validate_asset_records(product, records)
+        for asset_name, (expected_size, expected_digest) in archived.items():
+            data = records[asset_name][1]
+            actual_digest = hashlib.sha256(data).hexdigest()
+            if len(data) != expected_size or actual_digest != expected_digest:
+                raise AssetIntegrityError(product.id, asset_name, "post-flush readback differs from archived bytes")
+            logger.info("Archived and verified asset: %s", asset_name)
 
     def retrieve_metadata(self, product_id: str) -> Iterator[bytes]:
         """
@@ -140,30 +230,11 @@ class DasiProductHandler:
         Yields:
             Tuples of (asset_name, dasi_key, asset_data) per matching asset.
         """
-        base_query = self._build_query(product_id)
-
-        available: dict[str, str] = {}
-        for item in self.dasi_assets.list(base_query):
-            name = item.key['asset_name']
-            mediatype = item.key['mediatype']
-            if name in available:
-                assert available[name] == mediatype, (
-                    f"Multiple mediatypes for {product_id}/{name}: {available[name]!r}, {mediatype!r}"
-                )
-            available[name] = mediatype
-
-        missing = sorted(set(asset_names) - available.keys())
-        if missing:
-            raise AssetNotFoundError(", ".join(missing), product_id)
-
-        wanted = {name: available[name] for name in asset_names if name in available}
-        if not wanted:
+        requested = list(dict.fromkeys(asset_names))
+        if not requested:
             return
 
-        full_query = {
-            **base_query,
-            'asset_name': list(wanted),
-            'mediatype': sorted(set(wanted.values())),
-        }
-        for r in self.dasi_assets.retrieve(full_query):
-            yield r.key['asset_name'], r.key, r.data
+        records = self._retrieve_asset_records(self.dasi_assets, product_id, requested)
+        for asset_name in requested:
+            key, data = records[asset_name]
+            yield asset_name, key, data

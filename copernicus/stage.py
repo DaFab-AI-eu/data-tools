@@ -7,18 +7,35 @@ Example usage:
 """
 
 import argparse
+import json
 import logging
 import os
 import sys
 
+from pystac import Item
+
 from logging_setup import setup_logging
-from pydafab import AssetNotFoundError, CopernicusIngestor, DasiProductHandler
+from pydafab import AssetIntegrityError, AssetNotFoundError, CopernicusIngestor, DasiProductHandler
 from pydafab.helpers import media_subtype
+from pydafab.integrity import validate_asset_data
 
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_retrieved_assets(product: Item, retrieved: list[tuple[str, dict, bytes]]) -> None:
+    for asset_name, _key, data in retrieved:
+        if asset_name not in product.assets:
+            raise AssetNotFoundError(asset_name, product.id)
+        validate_asset_data(
+            product.id,
+            asset_name,
+            product.assets[asset_name],
+            data,
+            "retrieved",
+        )
 
 
 def parse_arguments():
@@ -73,22 +90,27 @@ def main():
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    found = False
+    product = None
     for metadata in handler.retrieve_metadata(args.product_id):
+        if product is not None:
+            sys.exit(f"Multiple metadata records found for product [{args.product_id}]")
+        product = Item.from_dict(json.loads(metadata))
+        if product.id != args.product_id:
+            sys.exit(f"Archived metadata ID [{product.id}] does not match [{args.product_id}]")
         output_file = os.path.join(args.output_dir, f"{args.product_id}.json")
         with open(output_file, "wb") as of:
             of.write(metadata)
         logger.info("Product metadata saved to: %s", output_file)
-        found = True
 
-    if not found:
+    if product is None:
         sys.exit(f"Product [{args.product_id}] not found!")
 
     if args.asset_names:
         try:
-            for asset_name, key, data in handler.retrieve_assets(
-                args.product_id, args.asset_names.split(",")
-            ):
+            retrieved = list(handler.retrieve_assets(args.product_id, args.asset_names.split(",")))
+            _validate_retrieved_assets(product, retrieved)
+
+            for asset_name, key, data in retrieved:
                 ext = media_subtype(key["mediatype"])
                 asset_output_file = os.path.join(
                     args.output_dir, f"{args.product_id}_{asset_name}.{ext}"
@@ -96,7 +118,7 @@ def main():
                 with open(asset_output_file, "wb") as of:
                     of.write(data)
                 logger.info("Asset [%s] saved to: %s", asset_name, asset_output_file)
-        except AssetNotFoundError as e:
+        except (AssetNotFoundError, AssetIntegrityError) as e:
             sys.exit(str(e))
 
 
