@@ -1,4 +1,4 @@
-ARG DASI_IMAGE=ghcr.io/dafab-ai-eu/dasi:0.2.8
+ARG DASI_IMAGE=ghcr.io/dafab-ai-eu/dasi:0.3.1
 FROM ${DASI_IMAGE} AS package
 
 USER root

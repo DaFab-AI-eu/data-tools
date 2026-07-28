@@ -1,4 +1,4 @@
-FROM dasi:0.2.8
+FROM dasi:0.3.1
 
 USER root
 

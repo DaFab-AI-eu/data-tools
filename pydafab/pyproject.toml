@@ -11,7 +11,7 @@ authors = [{name = "Metin Cakircali"}, {name = "Joshua Harwood"}]
 license = {text = "Apache License 2.0"}
 requires-python = ">=3.11"
 dependencies = [
-	"pydasi>=0.2.8",
+	"pydasi>=0.3.1",
 	"pystac>1.12",
 	"pystac-client>0.8",
 	"boto3>1.41",
