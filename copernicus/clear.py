@@ -17,6 +17,8 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+STORE_NAMES = ("assets", "metadata")
+
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
 
@@ -46,6 +48,16 @@ def format_size(num_bytes):
         size /= 1024
 
 
+def store_items(storage_path):
+    store_roots = [storage_path / store / "root" for store in STORE_NAMES]
+    invalid = [root for root in store_roots if not root.is_dir() or root.is_symlink()]
+    if invalid:
+        invalid_paths = ", ".join(str(path) for path in invalid)
+        raise SystemExit(f"Dasi store root not found or unsafe (volume not mounted?): {invalid_paths}")
+
+    return sorted(child for root in store_roots for child in root.iterdir())
+
+
 def main():
     args = parse_arguments()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -54,29 +66,33 @@ def main():
     if not args.path.is_dir():
         raise SystemExit(f"Dasi storage path not found (volume not mounted?): {args.path}")
 
-    # Items are the archived items inside each store root: <path>/<store>/root/*
-    items = sorted(args.path.glob("*/root/*"))
+    items = store_items(args.path)
 
     logger.info("Storage path: %s", args.path)
     logger.info("Found %d items", len(items))
 
-    for child in items:
-        logger.info("  %s", child)
-
-    used = sum(f.stat().st_size for f in args.path.rglob("*") if f.is_file())
+    store_files = (
+        path
+        for store in STORE_NAMES
+        for path in (args.path / store / "root").rglob("*")
+        if path.is_file() and not path.is_symlink()
+    )
+    used = sum(path.stat().st_size for path in store_files)
     free = shutil.disk_usage(args.path).free
     logger.info("DASI used: %s", format_size(used))
     logger.info("Free space: %s", format_size(free))
 
     if not do_it:
+        for child in items:
+            logger.info("Would delete: %s", child)
         logger.info("Dry run: pass --do-it=true to delete these items.")
     else:
         for child in items:
-            # if child.is_dir() and not child.is_symlink():
-            #     shutil.rmtree(child)
-            # else:
-            #     child.unlink()
-            logger.info("would delete: %s", child)
+            if child.is_dir() and not child.is_symlink():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+            logger.info("Deleted: %s", child)
 
 
 if __name__ == "__main__":
