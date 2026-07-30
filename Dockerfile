@@ -1,4 +1,5 @@
-FROM dasi:0.2.8
+ARG DASI_IMAGE=ghcr.io/dafab-ai-eu/dasi:v0.3.1
+FROM ${DASI_IMAGE} AS package
 
 USER root
 
@@ -13,5 +14,15 @@ RUN set -ex; \
 
 
 COPY ./copernicus /tools/copernicus
+
+FROM package AS test
+
+RUN pip install -q --no-cache-dir -r /tmp/pydafab/requirements-dev.txt
+
+WORKDIR /tmp/pydafab
+
+CMD ["pytest", "-q", "tests"]
+
+FROM package AS runtime
 
 WORKDIR /tools
