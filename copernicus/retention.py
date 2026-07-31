@@ -1,15 +1,18 @@
-"""Reclaim DASI storage by deleting the oldest asset databases under a capacity policy.
+"""Reclaim DASI storage by deleting whole asset databases, oldest first.
 
-The storage path contains the assets and metadata stores (e.g. /data, holding
-/data/assets/root and /data/metadata/root). Each immediate child of a store root is a
-self-contained FDB database directory (e.g. CDSE:S2A:MSIL2A:T48PWA); whole directories are
-the only filesystem-safe unit to remove.
+The storage path holds the assets and metadata stores (e.g. /data, holding /data/assets/root
+and /data/metadata/root). Each immediate child of a store root is a self-contained FDB
+database directory such as CDSE:S2A:MSIL2A:T48PWA — the only unit that is safe to delete on
+the filesystem.
 
-Retention acts only when free disk space falls below the configured threshold, then deletes
-whole asset database directories oldest-first (by directory mtime) until the free-space target
-is met or the per-run delete-size cap is reached, whichever comes first. Directories younger
-than the minimum age are never deleted. Each deleted asset database also removes its aligned
-(same-named) directory in the metadata store.
+Retention acts only when free disk space falls below the configured threshold. It then
+deletes databases oldest first (by directory mtime) until the free-space target is met or
+the per-run delete-size cap is reached. Databases younger than the minimum age are never
+deleted.
+
+Deletion always removes a database from both stores together. If an asset database has no
+same-named metadata database the run aborts before deleting anything; the reverse is not
+checked — a metadata database without an assets counterpart is ignored.
 
 Pass --clear-all to wipe everything under both store roots (the legacy behaviour). Without
 --do-it=true every mode is a dry run that only reports what would be deleted.
