@@ -8,15 +8,15 @@ This deliverable describes the architectural design, implemented workflows, and 
 
 ## 1. Architecture
 
-The command-line tools expose search, ingest, stage, and clear workflows, while the `pydafab` package provides the reusable Copernicus, key-mapping, and DASI integration logic:
+The command-line tools expose search, ingest, stage, and retention workflows, while the `pydafab` package provides the reusable Copernicus, key-mapping, and DASI integration logic:
 
 ```text
 Workflow or Operator
     └─→ Copernicus CLI Tools
-            ├─→ search.py  → STAC Catalogue
-            ├─→ ingest.py  → PyDaFab → STAC/S3 → DASI
-            ├─→ stage.py   → PyDaFab → DASI → Filesystem
-            └─→ clear.py   → DASI Storage
+            ├─→ search.py     → STAC Catalogue
+            ├─→ ingest.py     → PyDaFab → STAC/S3 → DASI
+            ├─→ stage.py      → PyDaFab → DASI → Filesystem
+            └─→ retention.py  → DASI Storage
 ```
 
 ### 1.1 Core Components
@@ -26,7 +26,7 @@ The implementation comprises:
 - **`CopernicusIngestor`**: Searches the Copernicus STAC catalogue and retrieves product metadata and assets
 - **`DasiProductHandler`**: Coordinates archive, list, and retrieve operations across DASI stores
 - **`CopernicusKey`**: Maps Sentinel-1 and Sentinel-2 product identifiers to schema-driven DASI keys
-- **Command-line tools**: Provide focused search, ingest, stage, and clear operations
+- **Command-line tools**: Provide focused search, ingest, stage, and retention operations
 
 The base `StacIngestor` accepts configurable STAC catalogue and S3-compatible endpoints. The default Copernicus implementation uses the Copernicus Data Space catalogue and EO Data endpoint.
 
@@ -105,24 +105,35 @@ python copernicus/stage.py \
 
 Metadata retrieval is mandatory, while asset retrieval is optional and selective.
 
-### 2.4 Clear Operation
+### 2.4 Retention Operation
 
-Storage clearing provides explicit lifecycle control for both DASI stores:
+Retention provides capacity- and age-driven lifecycle control for both DASI stores. Each immediate child of a store root is a self-contained FDB database directory, and whole directories are the only filesystem-safe unit to remove. The policy is read from `retention.yml`:
+
+- `min_free_percent`: retention acts only when free disk space is below this, and deletes until it is met again
+- `delete_size`: per-run cap on the bytes reclaimed
+- `min_age_days`: databases whose directory mtime is younger than this are never deleted
+
+The workflow:
 
 1. **Store validation**: Confirm that the metadata and asset roots exist
-2. **Item discovery**: Enumerate the immediate children of both roots
-3. **Dry-run inspection**: Report storage usage and list every selected path without modifying it
-4. **Confirmed deletion**: Remove selected files, directories, and symbolic links only when `--do-it=true` is supplied
+2. **Threshold check**: Report disk usage; stop when free space is already at or above `min_free_percent`
+3. **Selection**: Enumerate asset database directories, drop any younger than `min_age_days`, and choose the oldest-first (by directory mtime) until the free-space target is met or `delete_size` is reached, whichever comes first
+4. **Aligned removal**: Each selected asset database also removes its same-named (aligned) directory in the metadata store
+5. **Dry-run inspection**: Report each selected database and the projected free space without modifying anything
+6. **Confirmed deletion**: Remove the selected directories only when `--do-it=true` is supplied
 
 ```bash
 # Dry run
-python copernicus/clear.py --path=/data
+python copernicus/retention.py --path=/data --config=copernicus/ingest/retention.yml
 
-# Confirmed clear
-python copernicus/clear.py --path=/data --do-it=true
+# Apply the policy
+python copernicus/retention.py --path=/data --config=copernicus/ingest/retention.yml --do-it=true
+
+# Legacy full wipe of both store roots (ignores the policy)
+python copernicus/retention.py --path=/data --clear-all --do-it=true
 ```
 
-The store roots are preserved, paths outside them are not selected, and symbolic links are removed without traversing their targets. Data is otherwise retained indefinitely; selective expiry by age, product, collection, or capacity is not implemented.
+The store roots are preserved, paths outside them are not selected, and symbolic links are removed without traversing their targets.
 
 ---
 
@@ -137,7 +148,7 @@ The store roots are preserved, paths outside them are not selected, and symbolic
 | **Duplicate Handling** | Existing products and requested assets are skipped |
 | **Data Staging** | Metadata and selected assets written to local files |
 | **Sentinel Support** | Sentinel-1 and Sentinel-2 compact product identifiers |
-| **Storage Lifecycle** | Dry-run inspection and explicit full-store clearing |
+| **Storage Lifecycle** | Capacity- and age-based retention, or explicit full-store clearing, with dry-run inspection |
 | **Integration Model** | Python API and command-line tools for automated workflows |
 
 ---
@@ -148,6 +159,6 @@ DaFab Data Tools provides a focused bridge between Copernicus catalogue and obje
 
 The implementation supports Sentinel-1 and Sentinel-2 data without coupling the tools to a particular orchestration or storage deployment.
 
-**Status:** Core search, ingestion, staging, and clear workflows implemented
+**Status:** Core search, ingestion, staging, and retention workflows implemented
 
 **Availability:** `copernicus/` commands and the `pydafab` Python package
