@@ -135,6 +135,10 @@ python copernicus/retention.py --path=/data --clear-all --do-it=true
 
 The store roots are preserved, paths outside them are not selected, and symbolic links are removed without traversing their targets.
 
+#### Operational Considerations
+
+Retention is designed to run as a **blocking scheduled task** — a maintenance window with no ingest or stage activity — rather than inside the archiving flow itself. Two characteristics motivate this: selection is by directory mtime, which reflects when data was written rather than when it was last needed; and the asset and metadata databases are removed as two consecutive operations rather than one transaction. Both are safe under a dedicated scheduled run.
+
 ---
 
 ## 3. Key Features and Capabilities
