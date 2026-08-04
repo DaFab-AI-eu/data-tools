@@ -1,0 +1,11 @@
+---
+# Storage retention policy for the DASI asset and metadata stores.
+# Retention only acts when free disk space falls below min_free_percent, then deletes
+# whole asset databases oldest-first (with their aligned metadata) until the free-space
+# target is met or delete_size is reached, never touching databases younger than min_age_days.
+#
+# The shipped default is a no-op: min_free_percent 0 means free space is never "below"
+# the threshold, so nothing is ever deleted. Raise it (e.g. 20) to enable retention.
+min_free_percent: 0      # 0 = disabled; e.g. 20 acts when free disk < 20% and deletes until free >= 20%
+delete_size: 5GB         # per-run cap on bytes reclaimed (oldest-first)
+min_age_days: 7          # never delete asset databases whose directory mtime is younger than this
