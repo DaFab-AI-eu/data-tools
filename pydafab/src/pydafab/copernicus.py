@@ -47,11 +47,11 @@ class CopernicusIngestor(StacIngestor):
         :rtype: dict[str, Any]
         """
 
-        logger.debug(f"Max items: {params['max_items']}")
-        logger.debug(f"Collections: {params['collections']}")
-        logger.debug(f"Datetime: {params['datetime']}")
-        logger.debug(f"Bounding Box: {params['bbox']}")
-        logger.debug(f"Cloud cover max: {params['cloud_cover_max']}")
+        logger.debug("Max items: %s", params["max_items"])
+        logger.debug("Collections: %s", params["collections"])
+        logger.debug("Datetime: %s", params["datetime"])
+        logger.debug("Bounding Box: %s", params["bbox"])
+        logger.debug("Cloud cover max: %s", params["cloud_cover_max"])
 
         bbox = params["bbox"].split(",")
         if len(bbox) == 4:
@@ -63,7 +63,7 @@ class CopernicusIngestor(StacIngestor):
                 [max_lon, min_lat],
                 [min_lon, min_lat],
             ]
-            logger.debug(f"Coordinates: {coordinates}")
+            logger.debug("Coordinates: %s", coordinates)
         else:
             raise ValueError(f"Invalid bbox[{params['bbox']}]! Expected format: 'min_lon,min_lat,max_lon,max_lat'")
             # sys.exit(

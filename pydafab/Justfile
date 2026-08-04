@@ -1,0 +1,30 @@
+set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
+
+# Create venv + install as dev
+setup:
+	@if [ -d ".venv" ]; then \
+		echo "Virtualenv already exists"; \
+	else \
+		 echo "Creating virtualenv"; \
+		 python3 -m venv .venv --system-site-packages; \
+	fi
+
+# Install as dev
+dev:
+	pip install --root-user-action=ignore -e .
+
+# Linting
+check:
+	ruff check src tests --statistics
+
+# Run tests
+test: check
+	pytest -q
+
+# Clean build artifacts and virtualenv
+clean:
+	rm -rf build dist src/*.egg-info __pycache__ src/**/__pycache__
+
+# Create distribution packages
+dist: test
+	python -m build

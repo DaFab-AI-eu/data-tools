@@ -11,11 +11,14 @@ import logging
 import os
 import sys
 
-from pydafab import CopernicusIngestor, DasiProductHandler
+from logging_setup import setup_logging
+from pydafab import AssetNotFoundError, CopernicusIngestor, DasiProductHandler
 from pydafab.helpers import media_subtype
 
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
+
+logger = logging.getLogger(__name__)
 
 
 def parse_arguments():
@@ -63,6 +66,8 @@ def main():
 
     args = parse_arguments()
 
+    setup_logging(args.verbose)
+
     ingestor = CopernicusIngestor(verbose=args.verbose)
     handler = DasiProductHandler(ingestor, args.config_dir)
 
@@ -73,23 +78,26 @@ def main():
         output_file = os.path.join(args.output_dir, f"{args.product_id}.json")
         with open(output_file, "wb") as of:
             of.write(metadata)
-        logging.info(f"Product metadata saved to: {output_file}")
+        logger.info("Product metadata saved to: %s", output_file)
         found = True
 
     if not found:
         sys.exit(f"Product [{args.product_id}] not found!")
 
     if args.asset_names:
-        for asset_name, key, data in handler.retrieve_assets(
-            args.product_id, args.asset_names.split(",")
-        ):
-            ext = media_subtype(key["mediatype"])
-            asset_output_file = os.path.join(
-                args.output_dir, f"{args.product_id}_{asset_name}.{ext}"
-            )
-            with open(asset_output_file, "wb") as of:
-                of.write(data)
-            logging.info("Asset [%s] saved to: %s", asset_name, asset_output_file)
+        try:
+            for asset_name, key, data in handler.retrieve_assets(
+                args.product_id, args.asset_names.split(",")
+            ):
+                ext = media_subtype(key["mediatype"])
+                asset_output_file = os.path.join(
+                    args.output_dir, f"{args.product_id}_{asset_name}.{ext}"
+                )
+                with open(asset_output_file, "wb") as of:
+                    of.write(data)
+                logger.info("Asset [%s] saved to: %s", asset_name, asset_output_file)
+        except AssetNotFoundError as e:
+            sys.exit(str(e))
 
 
 if __name__ == "__main__":

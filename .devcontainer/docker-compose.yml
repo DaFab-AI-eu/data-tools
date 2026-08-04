@@ -3,7 +3,6 @@ name: data-tools
 services:
     develop:
         image: data-tools:develop
-        
         build:
             context: .
             dockerfile: Dockerfile
@@ -15,36 +14,22 @@ services:
 
         volumes:
             - ${SSH_AUTH_SOCK}:${SSH_AUTH_SOCK}
-            - /mnt/dasi/tools:/tools:cached
+            - ~/tools:/tools:cached
             - metadata:/data/metadata/root
             - assets:/data/assets/root
 
         # use a ptrace-based debugger C++
-        cap_add:
-            - SYS_PTRACE
-        security_opt:
-            - seccomp:unconfined
-
+        # cap_add:
+        #     - SYS_PTRACE
+        # security_opt:
+        #     - seccomp:unconfined
         # allow core dumps
-        privileged: true
-        ulimits:
-            core: -1
+        # privileged: true
+        # ulimits:
+        #     core: -1
 
         stdin_open: true
         tty: true
-
-    test:
-        profiles: 
-            - test
-        build:
-            context: .
-            dockerfile: Dockerfile
-        env_file: dev.env
-        volumes:
-            - /mnt/dasi/tools:/tools:cached
-            - metadata:/data/metadata/root
-            - assets:/data/assets/root
-        command: make -C /tools/pydafab test
 
 volumes:
   metadata:
