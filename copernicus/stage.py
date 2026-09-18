@@ -69,7 +69,7 @@ def main():
     setup_logging(args.verbose)
 
     ingestor = CopernicusIngestor(verbose=args.verbose)
-    handler = DasiProductHandler(ingestor, args.config_dir)
+    handler = DasiProductHandler(ingestor.source, args.config_dir)
 
     os.makedirs(args.output_dir, exist_ok=True)
 

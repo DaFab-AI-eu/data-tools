@@ -84,13 +84,13 @@ def test_archive_product_and_assets(mock_dasi, mock_init, dummy_product, tmp_pat
         ingestor.verbose = False
         ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
         ingestor.source = "CDSE"
-        tool = DasiProductHandler(ingestor, str(tmp_path))
+        tool = DasiProductHandler(ingestor.source, str(tmp_path))
         ingestor.fetch_product = MagicMock(return_value=({"key": "val"}, b"data"))
         ingestor.fetch_asset = MagicMock(
             return_value=(MagicMock(media_type="image/jp2"), b"data")
         )
-        tool.archive_product(dummy_product)
-        tool.archive_assets(dummy_product, ["TCI_20m", "WVP_10m"])
+        tool.archive_product(ingestor, dummy_product)
+        tool.archive_assets(ingestor, dummy_product, ["TCI_20m", "WVP_10m"])
         assert mock_dasi.return_value.archive.call_count == 3
 
 
@@ -101,10 +101,10 @@ def test_archive_assets_raises_on_missing_asset(mock_dasi, mock_init, dummy_prod
         ingestor = CopernicusIngestor()
         ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
         ingestor.source = "CDSE"
-        tool = DasiProductHandler(ingestor, str(tmp_path))
+        tool = DasiProductHandler(ingestor.source, str(tmp_path))
 
         with pytest.raises(AssetNotFoundError):
-            tool.archive_assets(dummy_product, ["NOT_A_REAL_BAND"])
+            tool.archive_assets(ingestor, dummy_product, ["NOT_A_REAL_BAND"])
 
         mock_dasi.return_value.archive.assert_not_called()
 
@@ -116,11 +116,11 @@ def test_archive_assets_raises_on_fetch_failure(mock_dasi, mock_init, dummy_prod
         ingestor = CopernicusIngestor()
         ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
         ingestor.source = "CDSE"
-        tool = DasiProductHandler(ingestor, str(tmp_path))
+        tool = DasiProductHandler(ingestor.source, str(tmp_path))
         ingestor.fetch_asset = MagicMock(side_effect=AssetFetchError("s3://bucket/key"))
 
         with pytest.raises(AssetFetchError):
-            tool.archive_assets(dummy_product, ["TCI_20m", "WVP_10m"])
+            tool.archive_assets(ingestor, dummy_product, ["TCI_20m", "WVP_10m"])
 
 
 @patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
@@ -129,7 +129,7 @@ def test_retrieve_assets_raises_on_missing_asset(mock_dasi, mock_init, dummy_pro
     with patch.object(CopernicusIngestor, "__init__", lambda self: None):
         ingestor = CopernicusIngestor()
         ingestor.source = "CDSE"
-        tool = DasiProductHandler(ingestor, str(tmp_path))
+        tool = DasiProductHandler(ingestor.source, str(tmp_path))
 
         with pytest.raises(AssetNotFoundError):
             list(tool.retrieve_assets(dummy_product.id, ["NOT_A_REAL_BAND"]))
