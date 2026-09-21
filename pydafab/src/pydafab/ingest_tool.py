@@ -8,7 +8,7 @@ from pydasi import Dasi
 from pydafab.dasi_copernicus import CopernicusKey
 
 from .copernicus import StacIngestor
-from .errors import AssetNotFoundError
+from .errors import AssetIntegrityError, AssetNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +160,12 @@ class DasiProductHandler:
                 assert available[name] == mediatype, (
                     f"Multiple mediatypes for {product_id}/{name}: {available[name]!r}, {mediatype!r}"
                 )
+            # Dasi accepts a zero-length record but aborts retrieving one on an
+            # fdb assertion that names no key. Ingestion rejects empty data, so
+            # this only catches records written before that check existed; drop
+            # it once no archive can hold one.
+            if item.length == 0 and name in asset_names:
+                raise AssetIntegrityError(product_id, name, "archived record is empty")
             available[name] = mediatype
 
         missing = sorted(set(asset_names) - available.keys())
