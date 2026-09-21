@@ -2,12 +2,15 @@
 Unit tests for Copernicus search and ingest functionality.
 """
 
+import hashlib
+from unittest.mock import MagicMock, patch
+
 import pytest
 from requests import RequestException
-from unittest.mock import MagicMock, patch
+
 from pydafab.copernicus import CopernicusIngestor
 from pydafab.dasi_copernicus import CopernicusKey
-from pydafab.errors import AssetFetchError, AssetNotFoundError, ProductFetchError
+from pydafab.errors import AssetFetchError, AssetIntegrityError, AssetNotFoundError, ProductFetchError
 from pydafab.ingest_tool import DasiProductHandler
 
 
@@ -142,6 +145,81 @@ def test_fetch_s3_raises_on_boto_error():
         with patch("boto3.resource", side_effect=Exception("connection refused")):
             with pytest.raises(AssetFetchError):
                 ingestor._fetch_s3("s3://bucket/key")
+
+
+def test_fetch_asset_accepts_matching_size_and_checksum(dummy_product):
+    data = b"data"
+    asset = dummy_product.assets["TCI_20m"]
+    asset.href = "s3://bucket/key"
+    asset.extra_fields = {
+        "file:size": len(data),
+        "file:checksum": f"1220{hashlib.sha256(data).hexdigest()}",
+    }
+
+    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
+        ingestor = CopernicusIngestor()
+        ingestor._fetch_s3 = MagicMock(return_value=data)
+
+        _asset, fetched = ingestor.fetch_asset(dummy_product, "TCI_20m")
+
+    assert fetched == data
+
+
+def test_fetch_asset_raises_on_empty_data(dummy_product):
+    asset = dummy_product.assets["TCI_20m"]
+    asset.href = "s3://bucket/key"
+    asset.extra_fields = {}
+
+    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
+        ingestor = CopernicusIngestor()
+        ingestor._fetch_s3 = MagicMock(return_value=b"")
+
+        with pytest.raises(AssetIntegrityError):
+            ingestor.fetch_asset(dummy_product, "TCI_20m")
+
+
+def test_fetch_asset_raises_on_size_mismatch(dummy_product):
+    asset = dummy_product.assets["TCI_20m"]
+    asset.href = "s3://bucket/key"
+    asset.extra_fields = {"file:size": 4}
+
+    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
+        ingestor = CopernicusIngestor()
+        ingestor._fetch_s3 = MagicMock(return_value=b"bad")
+
+        with pytest.raises(AssetIntegrityError):
+            ingestor.fetch_asset(dummy_product, "TCI_20m")
+
+
+def test_fetch_asset_raises_on_checksum_mismatch(dummy_product):
+    asset = dummy_product.assets["TCI_20m"]
+    asset.href = "s3://bucket/key"
+    asset.extra_fields = {
+        "file:checksum": f"1220{hashlib.sha256(b'other').hexdigest()}",
+    }
+
+    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
+        ingestor = CopernicusIngestor()
+        ingestor._fetch_s3 = MagicMock(return_value=b"data")
+
+        with pytest.raises(AssetIntegrityError):
+            ingestor.fetch_asset(dummy_product, "TCI_20m")
+
+
+@patch("pydafab.ingest_tool.Dasi")
+def test_retrieve_assets_raises_on_empty_archived_asset(mock_dasi, dummy_product, tmp_path):
+    assets = MagicMock()
+    record = MagicMock()
+    record.key = {"asset_name": "TCI_20m", "mediatype": "image_jp2"}
+    record.length = 0
+    assets.list.return_value = [record]
+    mock_dasi.side_effect = [MagicMock(), assets]
+    tool = DasiProductHandler("CDSE", str(tmp_path))
+
+    with pytest.raises(AssetIntegrityError):
+        list(tool.retrieve_assets(dummy_product.id, ["TCI_20m"]))
+
+    assets.retrieve.assert_not_called()
 
 
 def test_fetch_product_raises_on_request_error(dummy_product):
