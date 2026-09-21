@@ -69,7 +69,7 @@ def main():
     setup_logging(args.verbose)
 
     ingestor = CopernicusIngestor(verbose=args.verbose)
-    handler = DasiProductHandler(ingestor, args.config_dir)
+    handler = DasiProductHandler(ingestor.source, args.config_dir)
 
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -86,10 +86,10 @@ def main():
 
     if args.asset_names:
         try:
-            for asset_name, key, data in handler.retrieve_assets(
+            for asset_name, mediatype, data in handler.retrieve_assets(
                 args.product_id, args.asset_names.split(",")
             ):
-                ext = media_subtype(key["mediatype"])
+                ext = media_subtype(mediatype)
                 asset_output_file = os.path.join(
                     args.output_dir, f"{args.product_id}_{asset_name}.{ext}"
                 )

@@ -4,6 +4,7 @@ from importlib.metadata import version
 
 from .errors import (
     AssetFetchError,
+    AssetIntegrityError,
     AssetNotFoundError,
     InvalidArgumentError,
     ProductFetchError,
@@ -19,6 +20,7 @@ logging.getLogger("pydafab").addHandler(logging.NullHandler())
 
 __all__ = [
     "AssetFetchError",
+    "AssetIntegrityError",
     "AssetNotFoundError",
     "InvalidArgumentError",
     "ProductFetchError",

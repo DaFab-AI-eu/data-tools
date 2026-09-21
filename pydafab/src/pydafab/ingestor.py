@@ -16,6 +16,7 @@ from requests import RequestException
 from urllib3.util import Retry
 
 from .errors import AssetFetchError, AssetNotFoundError, ProductFetchError, ProductNotFoundError
+from .integrity import validate_asset_data
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +158,8 @@ class StacIngestor:
         asset = product.assets[asset_key]
 
         data = self._fetch_s3(asset.href)
+
+        validate_asset_data(product.id, asset_key, asset, data)
 
         logger.debug(
             "Fetched asset: %s from product: %s, size: %d bytes",

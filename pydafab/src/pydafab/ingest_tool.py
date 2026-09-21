@@ -8,7 +8,7 @@ from pydasi import Dasi
 from pydafab.dasi_copernicus import CopernicusKey
 
 from .copernicus import StacIngestor
-from .errors import AssetNotFoundError
+from .errors import AssetIntegrityError, AssetNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -18,17 +18,17 @@ __license__ = "Apache License Version 2.0"
 
 class DasiProductHandler:
 
-    def __init__(self, ingestor: StacIngestor, config_dir: str = "."):
-        """Initializes with a directory path to the Dasi configurations and an ingestor instance."""
+    def __init__(self, source: str, config_dir: str = "."):
+        """Initializes with the archive source name and a directory of Dasi configurations."""
         self.config_dir = Path(config_dir)
         if not self.config_dir.is_dir():
             raise NotADirectoryError(f"Parameter 'config_dir' is not a directory: {config_dir}")
-        self.ingestor = ingestor
+        self.source = source
         self.dasi_metadata = Dasi(str(self.config_dir / "metadata.yml"))
         self.dasi_assets = Dasi(str(self.config_dir / "assets.yml"))
 
     def _build_query(self, product_id: str, asset_name: str | None = None) -> dict:
-        return CopernicusKey.from_product_id(self.ingestor.source, product_id, asset_name).to_dasi_query()
+        return CopernicusKey.from_product_id(self.source, product_id, asset_name).to_dasi_query()
 
     def _product_archived(self, product_id: str) -> bool:
         found = False
@@ -43,11 +43,14 @@ class DasiProductHandler:
                 existing.add(item.key['asset_name'])
         return existing
 
-    def archive_product(self, product: Item, modifier: Any = None) -> None:
+    def archive_product(
+        self, ingestor: StacIngestor, product: Item, modifier: Any = None
+    ) -> None:
         """
         Archive a product using the ingestor and Dasi metadata tool
 
         Args:
+            ingestor: Source of the product metadata to download.
             product: Product object to be archived.
             modifier: Optional tool to modify the metadata before download.
         """
@@ -56,8 +59,8 @@ class DasiProductHandler:
             logger.info("Product %s already exists in DASI, skipping download", product.id)
             return
 
-        data = self.ingestor.fetch_product(product)
-        key = CopernicusKey.from_stac(self.ingestor.source, product)
+        data = ingestor.fetch_product(product)
+        key = CopernicusKey.from_stac(self.source, product)
 
         logger.debug("Archiving product: %s with key: %s", product.id, key)
 
@@ -69,11 +72,18 @@ class DasiProductHandler:
 
         logger.info("Archived product: %s", product.id)
 
-    def archive_assets(self, product: Item, asset_names: list[str], modifier: Any = None) -> None:
+    def archive_assets(
+        self,
+        ingestor: StacIngestor,
+        product: Item,
+        asset_names: list[str],
+        modifier: Any = None,
+    ) -> None:
         """
         Archive specified assets of a product using Dasi
 
         Args:
+            ingestor: Source of the assets to download.
             product: Product whose assets will be archived.
             asset_names: List of asset names to archive.
             modifier: Optional tool to modify the asset before download.
@@ -99,8 +109,8 @@ class DasiProductHandler:
 
         try:
             for asset_name in assets_to_fetch:
-                _asset, data = self.ingestor.fetch_asset(product, asset_name)
-                key = CopernicusKey.from_stac(self.ingestor.source, product, asset_name)
+                _asset, data = ingestor.fetch_asset(product, asset_name)
+                key = CopernicusKey.from_stac(self.source, product, asset_name)
 
                 logger.debug("Archiving asset: %s with DASI key: %s", asset_name, key)
 
@@ -124,11 +134,11 @@ class DasiProductHandler:
             The metadata bytes for each matching record.
         """
         for item in self.dasi_metadata.retrieve(self._build_query(product_id)):
-            yield item.data
+            yield bytes(item.data)
 
     def retrieve_assets(
         self, product_id: str, asset_names: list[str]
-    ) -> Iterator[tuple[str, dict, bytes]]:
+    ) -> Iterator[tuple[str, str, bytes]]:
         """
         Retrieve named assets for a product from Dasi.
 
@@ -138,7 +148,7 @@ class DasiProductHandler:
                 is queried independently against Dasi.
 
         Yields:
-            Tuples of (asset_name, dasi_key, asset_data) per matching asset.
+            Tuples of (asset_name, mediatype, asset_data) per matching asset.
         """
         base_query = self._build_query(product_id)
 
@@ -150,6 +160,12 @@ class DasiProductHandler:
                 assert available[name] == mediatype, (
                     f"Multiple mediatypes for {product_id}/{name}: {available[name]!r}, {mediatype!r}"
                 )
+            # Dasi accepts a zero-length record but aborts retrieving one on an
+            # fdb assertion that names no key. Ingestion rejects empty data, so
+            # this only catches records written before that check existed; drop
+            # it once no archive can hold one.
+            if item.length == 0 and name in asset_names:
+                raise AssetIntegrityError(product_id, name, "archived record is empty")
             available[name] = mediatype
 
         missing = sorted(set(asset_names) - available.keys())
@@ -166,4 +182,4 @@ class DasiProductHandler:
             'mediatype': sorted(set(wanted.values())),
         }
         for r in self.dasi_assets.retrieve(full_query):
-            yield r.key['asset_name'], r.key, r.data
+            yield r.key['asset_name'], r.key['mediatype'], bytes(r.data)

@@ -72,14 +72,14 @@ def main():
     try:
         product = ingestor.search_product(args.product_id, collections=[args.collections])
 
-        handler = DasiProductHandler(ingestor, args.config_dir)
+        handler = DasiProductHandler(ingestor.source, args.config_dir)
 
         modifier = helpers.ProductModifier()
 
-        handler.archive_product(product, modifier)
+        handler.archive_product(ingestor, product, modifier)
 
         requested = [name for name in args.asset_names.split(",") if name]
-        handler.archive_assets(product, requested, modifier)
+        handler.archive_assets(ingestor, product, requested, modifier)
     except (ProductNotFoundError, ProductFetchError, AssetNotFoundError, AssetFetchError) as e:
         sys.exit(str(e))
 
