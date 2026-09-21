@@ -86,10 +86,10 @@ def main():
 
     if args.asset_names:
         try:
-            for asset_name, key, data in handler.retrieve_assets(
+            for asset_name, mediatype, data in handler.retrieve_assets(
                 args.product_id, args.asset_names.split(",")
             ):
-                ext = media_subtype(key["mediatype"])
+                ext = media_subtype(mediatype)
                 asset_output_file = os.path.join(
                     args.output_dir, f"{args.product_id}_{asset_name}.{ext}"
                 )

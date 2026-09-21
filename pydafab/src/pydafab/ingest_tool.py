@@ -134,11 +134,11 @@ class DasiProductHandler:
             The metadata bytes for each matching record.
         """
         for item in self.dasi_metadata.retrieve(self._build_query(product_id)):
-            yield item.data
+            yield bytes(item.data)
 
     def retrieve_assets(
         self, product_id: str, asset_names: list[str]
-    ) -> Iterator[tuple[str, dict, bytes]]:
+    ) -> Iterator[tuple[str, str, bytes]]:
         """
         Retrieve named assets for a product from Dasi.
 
@@ -148,7 +148,7 @@ class DasiProductHandler:
                 is queried independently against Dasi.
 
         Yields:
-            Tuples of (asset_name, dasi_key, asset_data) per matching asset.
+            Tuples of (asset_name, mediatype, asset_data) per matching asset.
         """
         base_query = self._build_query(product_id)
 
@@ -182,4 +182,4 @@ class DasiProductHandler:
             'mediatype': sorted(set(wanted.values())),
         }
         for r in self.dasi_assets.retrieve(full_query):
-            yield r.key['asset_name'], r.key, r.data
+            yield r.key['asset_name'], r.key['mediatype'], bytes(r.data)
