@@ -5,9 +5,12 @@ from typing import Any
 
 from .errors import AssetIntegrityError
 
-_MULTIHASHERS: dict[int, Callable[[bytes], Any]] = {
-    0x12: hashlib.sha256,
-    0x16: hashlib.sha3_256,
+# Multihash prefix (varint algorithm code, then digest length) for each supported hash.
+# Varints must be minimally encoded, so each prefix has exactly one valid form.
+_MULTIHASHERS: dict[bytes, Callable[..., Any]] = {
+    bytes.fromhex("1220"): hashlib.sha256,
+    bytes.fromhex("1620"): hashlib.sha3_256,
+    bytes.fromhex("d50110"): hashlib.md5,
 }
 
 
@@ -43,16 +46,11 @@ def validate_asset_data(product_id: str, asset_name: str, asset: Any, data: byte
     except (TypeError, ValueError) as e:
         raise AssetIntegrityError(product_id, asset_name, "malformed file:checksum") from e
 
-    if len(multihash) < 2 or multihash[0] not in _MULTIHASHERS:
-        algorithm = f"0x{multihash[0]:02x}" if multihash else "missing"
-        raise AssetIntegrityError(
-            product_id, asset_name, f"unsupported file:checksum algorithm {algorithm}"
-        )
+    for prefix, hasher in _MULTIHASHERS.items():
+        if multihash.startswith(prefix) and len(multihash) == len(prefix) + hasher().digest_size:
+            break
+    else:
+        raise AssetIntegrityError(product_id, asset_name, "unsupported or malformed file:checksum")
 
-    hasher = _MULTIHASHERS[multihash[0]]
-    expected_digest = multihash[2:]
-    if multihash[1] != len(expected_digest) or len(expected_digest) != hasher(b"").digest_size:
-        raise AssetIntegrityError(product_id, asset_name, "malformed file:checksum length")
-
-    if not hmac.compare_digest(hasher(data).digest(), expected_digest):
+    if not hmac.compare_digest(hasher(data).digest(), multihash[len(prefix):]):
         raise AssetIntegrityError(product_id, asset_name, "checksum does not match file:checksum")
