@@ -138,13 +138,13 @@ def test_retrieve_assets_raises_on_missing_asset(mock_dasi, mock_init, dummy_pro
             list(tool.retrieve_assets(dummy_product.id, ["NOT_A_REAL_BAND"]))
 
 
-def test_fetch_s3_raises_on_boto_error():
+def test_fetch_raises_on_boto_error():
     with patch.object(CopernicusIngestor, "__init__", lambda self: None):
         ingestor = CopernicusIngestor()
         ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
         with patch("boto3.resource", side_effect=Exception("connection refused")):
             with pytest.raises(AssetFetchError):
-                ingestor._fetch_s3("s3://bucket/key")
+                ingestor._fetch("s3://bucket/key")
 
 
 def test_fetch_asset_accepts_matching_size_and_checksum(dummy_product):
@@ -158,7 +158,7 @@ def test_fetch_asset_accepts_matching_size_and_checksum(dummy_product):
 
     with patch.object(CopernicusIngestor, "__init__", lambda self: None):
         ingestor = CopernicusIngestor()
-        ingestor._fetch_s3 = MagicMock(return_value=data)
+        ingestor._fetch = MagicMock(return_value=data)
 
         _asset, fetched = ingestor.fetch_asset(dummy_product, "TCI_20m")
 
@@ -172,7 +172,7 @@ def test_fetch_asset_raises_on_empty_data(dummy_product):
 
     with patch.object(CopernicusIngestor, "__init__", lambda self: None):
         ingestor = CopernicusIngestor()
-        ingestor._fetch_s3 = MagicMock(return_value=b"")
+        ingestor._fetch = MagicMock(return_value=b"")
 
         with pytest.raises(AssetIntegrityError):
             ingestor.fetch_asset(dummy_product, "TCI_20m")
@@ -185,7 +185,7 @@ def test_fetch_asset_raises_on_size_mismatch(dummy_product):
 
     with patch.object(CopernicusIngestor, "__init__", lambda self: None):
         ingestor = CopernicusIngestor()
-        ingestor._fetch_s3 = MagicMock(return_value=b"bad")
+        ingestor._fetch = MagicMock(return_value=b"bad")
 
         with pytest.raises(AssetIntegrityError):
             ingestor.fetch_asset(dummy_product, "TCI_20m")
@@ -200,7 +200,7 @@ def test_fetch_asset_raises_on_checksum_mismatch(dummy_product):
 
     with patch.object(CopernicusIngestor, "__init__", lambda self: None):
         ingestor = CopernicusIngestor()
-        ingestor._fetch_s3 = MagicMock(return_value=b"data")
+        ingestor._fetch = MagicMock(return_value=b"data")
 
         with pytest.raises(AssetIntegrityError):
             ingestor.fetch_asset(dummy_product, "TCI_20m")
