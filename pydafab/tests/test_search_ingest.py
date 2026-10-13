@@ -57,6 +57,32 @@ def test_make_asset_key_from_product(dummy_product):
     assert key["mediatype"] == "image_jp2"
 
 
+def test_make_key_from_s1_rtc_product_id():
+    key = CopernicusKey.from_product_id("MPC", "S1A_IW_GRDH_1SDV_20211220T182141_20211220T182206_041096_04E1DB_rtc")
+    assert key["source"] == "MPC"
+    assert key["mission"] == "S1A"
+    assert key["mode"] == "IW"
+    assert key["type"] == "GRDH"
+    assert key["takedate"] == "2021-12-20"
+    assert key["polarization"] == "DV"
+    assert key["taketime"] == "182141"
+    assert key["stoptime"] == "182206"
+    assert key["orbit"] == "41096"
+
+
+def test_make_key_from_s1_rtc_product_id_without_datatake():
+    key = CopernicusKey.from_product_id("MPC", "S1A_IW_GRDH_1SDV_20250601T234858_20250601T234923_059459_rtc")
+    assert key["taketime"] == "234858"
+    assert key["stoptime"] == "234923"
+    assert key["orbit"] == "59459"
+
+
+def test_s1_rtc_slices_sharing_a_start_time_get_distinct_keys():
+    shorter = CopernicusKey.from_product_id("MPC", "S1A_IW_GRDH_1SDV_20211220T182141_20211220T182206_041096_04E1DB_rtc")
+    longer = CopernicusKey.from_product_id("MPC", "S1A_IW_GRDH_1SDV_20211220T182141_20211220T182216_041096_04E1DB_rtc")
+    assert shorter != longer
+
+
 @patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
 @patch("pydafab.copernicus.StacIngestor.search")
 def test_search_calls_super(mock_search, mock_init):

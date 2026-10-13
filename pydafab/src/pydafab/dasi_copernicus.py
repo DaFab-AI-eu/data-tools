@@ -20,22 +20,24 @@ Sentinel-2 compact name (7 tokens):
     Tile ID (Txxxxx): T01UBS,MGRS Tile identifier
     Discriminator:    20250124T013809,Unique ID (usually processing/generation time)
 
-Sentinel-1 compact name (9 tokens):
-  MMM_BB_TTTR_LFPP_YYYYMMDDTHHMMSS_YYYYMMDDTHHMMSS_OOOOOO_DDDDDD_CCCC[.SAFE]
-  e.g. S1A_IW_GRDH_1SDV_20230516T152430_20230516T152455_123456_ABCDEF_1234
+Sentinel-1 RTC name on the Microsoft Planetary Computer (8 or 9 tokens):
+  MMM_BB_TTTR_LFPP_YYYYMMDDTHHMMSS_YYYYMMDDTHHMMSS_OOOOOO[_DDDDDD]_rtc
+  e.g. S1A_IW_GRDH_1SDV_20211220T182141_20211220T182206_041096_04E1DB_rtc
+       S1A_IW_GRDH_1SDV_20250601T234858_20250601T234923_059459_rtc
 
-    Mission (MMM):       S1A,"Sentinel-1A (also S1B, S1C)"
+    Mission (MMM):       S1A,"Sentinel-1A (also S1B, S1C, S1D)"
     Mode (BB):           IW,"Interferometric Wide swath (also SM, EW, WV; stripmap beams S1-S6; calibration RF/AN/EN)"
     Type/Res (TTTR):     GRDH,"Ground Range Detected, High resolution (types: RAW, SLC, GRD, OCN, ETA; res: F/H/M/_)"
     Class/Pol (LFPP):    1SDV,"Level 1, Standard class, Dual-pol Vertical (main VV + cross VH)"
                            L:  Processing level (0, 1, 2, A for ETAD)
                            F:  Product class (S=Standard, A=Annotation, N=Noise, C=Calibration, X=ETAD)
                            PP: Polarization (SH, SV, DH, DV, or single HH/HV/VV/VH)
-    Sensing Start:       20230516T152430,"Start of acquisition (May 16, 2023 at 15:24:30 UTC)"
-    Sensing Stop:        20230516T152455,"End of acquisition (May 16, 2023 at 15:24:55 UTC)"
-    Absolute Orbit (O):  123456,"Absolute orbit number at product start time (000001-999999)"
-    Mission Datatake:    ABCDEF,"Mission datatake ID uniquely identifying the SAR collection event (hex, 000001-FFFFFF)"
-    Product Unique (C):  1234,"CRC-16 computed over the manifest file (hex, 0000-FFFF)"
+    Sensing Start:       20211220T182141,"Start of acquisition (Dec 20, 2021 at 18:21:41 UTC)"
+    Sensing Stop:        20211220T182206,"End of acquisition (Dec 20, 2021 at 18:22:06 UTC)"
+    Absolute Orbit (O):  041096,"Absolute orbit number at product start time (000001-999999)"
+    Mission Datatake:    04E1DB,"Mission datatake ID (hex); absent from many 2025 IDs, so it cannot key a product"
+
+    Slices of one datatake can share a start time, so the stop time keys a product.
 """
 
 
@@ -92,19 +94,20 @@ class CopernicusKey(dict):
     @classmethod
     def _from_s1(cls, source: str, stem: str, asset_name: str | None) -> Self:
         parts = stem.split("_")
-        if len(parts) != 9:
-            raise ValueError(f"Invalid Sentinel-1 product ID: {stem}")
-        mission, mode, type_res, lcp, start, _stop, abs_orbit, datatake, _crc = parts
-        dt = datetime.strptime(start, "%Y%m%dT%H%M%S")
+        if len(parts) not in (8, 9) or parts[-1] != "rtc":
+            raise ValueError(f"Invalid Sentinel-1 RTC product ID: {stem}")
+        mission, mode, type_res, lcp, start, stop, abs_orbit = parts[:7]
+        start_dt = datetime.strptime(start, "%Y%m%dT%H%M%S")
+        stop_dt = datetime.strptime(stop, "%Y%m%dT%H%M%S")
         key = cls(
             source=_sanitize(source),
             mission=mission,
             mode=mode,
             type=type_res,
-            takedate=dt.strftime("%Y-%m-%d"),
+            takedate=start_dt.strftime("%Y-%m-%d"),
             polarization=lcp[2:],  # LFPP
-            taketime=dt.strftime("%H%M%S"),
-            datatake=datatake,
+            taketime=start_dt.strftime("%H%M%S"),
+            stoptime=stop_dt.strftime("%H%M%S"),
             orbit=str(int(abs_orbit)),  # OOOOOO
         )
         if asset_name is not None:
