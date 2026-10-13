@@ -12,7 +12,7 @@ import logging
 from json import dump
 
 from logging_setup import setup_logging
-from pydafab import CopernicusIngestor
+from pydafab import INGESTORS
 
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
@@ -39,6 +39,7 @@ def parse_arguments():
     arg_parses.add_argument(
         "--collections",
         type=str,
+        choices=INGESTORS,
         help="Collections to search in. default: sentinel-2-l2a",
         default="sentinel-2-l2a",
     )
@@ -89,7 +90,7 @@ def main():
 
     products = []
 
-    for product in CopernicusIngestor(verbose=args.verbose).search(params):
+    for product in INGESTORS[args.collections](verbose=args.verbose).search(params):
         products.append(product.id)
         logger.debug("Found product ID: %s", product.id)
 

@@ -12,9 +12,9 @@ import helpers
 from logging_setup import setup_logging
 
 from pydafab import (
+    INGESTORS,
     AssetFetchError,
     AssetNotFoundError,
-    CopernicusIngestor,
     DasiProductHandler,
     ProductFetchError,
     ProductNotFoundError,
@@ -41,6 +41,7 @@ def parse_arguments():
     arg_parser.add_argument(
         "--collections",
         type=str,
+        choices=INGESTORS,
         help="STAC collections to search in, e.g., sentinel-2-l2a",
         default="sentinel-2-l2a",
     )
@@ -67,7 +68,7 @@ def main():
 
     setup_logging(args.verbose)
 
-    ingestor = CopernicusIngestor(verbose=args.verbose)
+    ingestor = INGESTORS[args.collections](verbose=args.verbose)
 
     try:
         product = ingestor.search_product(args.product_id, collections=[args.collections])

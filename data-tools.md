@@ -24,11 +24,12 @@ Workflow or Operator
 The implementation comprises:
 
 - **`CopernicusIngestor`**: Searches the Copernicus STAC catalogue and retrieves product metadata and assets
+- **`PlanetaryComputerIngestor`**: Searches the Microsoft Planetary Computer STAC catalogue for Sentinel-1 RTC products and retrieves their metadata and assets
 - **`DasiProductHandler`**: Coordinates archive, list, and retrieve operations across DASI stores
-- **`CopernicusKey`**: Maps Sentinel-1 and Sentinel-2 product identifiers to schema-driven DASI keys
+- **`CopernicusKey`**: Maps Sentinel-2 and Sentinel-1 RTC product identifiers to schema-driven DASI keys
 - **Command-line tools**: Provide focused search, ingest, stage, and retention operations
 
-The base `StacIngestor` accepts configurable STAC catalogue and S3-compatible endpoints. The default Copernicus implementation uses the Copernicus Data Space catalogue and EO Data endpoint.
+The base `StacIngestor` accepts a configurable STAC catalogue; each implementation downloads assets from its own storage. The Copernicus implementation uses the Copernicus Data Space catalogue and S3 EO Data endpoint. The Planetary Computer implementation signs Azure Blob Storage hrefs. Commands pick the catalogue from `--collections` through `INGESTORS`: `sentinel-2-l2a` comes from Copernicus and `sentinel-1-rtc` from the Planetary Computer.
 
 ### 1.2 DASI Storage Model
 
@@ -151,7 +152,7 @@ Retention is designed to run as a **blocking scheduled task** — a maintenance 
 | **Asset Archive** | Selected S3 assets in a dedicated DASI store |
 | **Duplicate Handling** | Existing products and requested assets are skipped |
 | **Data Staging** | Metadata and selected assets written to local files |
-| **Sentinel Support** | Sentinel-1 and Sentinel-2 compact product identifiers |
+| **Sentinel Support** | Sentinel-2 from Copernicus; Sentinel-1 radiometrically terrain corrected (RTC) from the Planetary Computer |
 | **Storage Lifecycle** | Capacity- and age-based retention, or explicit full-store clearing, with dry-run inspection |
 | **Integration Model** | Python API and command-line tools for automated workflows |
 
