@@ -12,6 +12,7 @@ from pydafab.copernicus import CopernicusIngestor
 from pydafab.dasi_copernicus import CopernicusKey
 from pydafab.errors import AssetFetchError, AssetIntegrityError, AssetNotFoundError, ProductFetchError
 from pydafab.ingest_tool import DasiProductHandler
+from pydafab.planetary_computer import PlanetaryComputerIngestor
 
 
 @pytest.fixture
@@ -283,3 +284,23 @@ def test_search_returns_dummy_product(dummy_product):
         assert "TCI_20m" in dummy_product.assets
         assert "WVP_10m" in dummy_product.assets
         assert results[0].self_href == dummy_product.self_href
+
+
+def test_fetch_asset_verifies_planetary_computer_md5():
+    """The Planetary Computer puts a bare MD5 hex in file:checksum, not a multihash."""
+    data = b"data"
+    asset = MagicMock(extra_fields={"file:checksum": hashlib.md5(data).hexdigest()})
+
+    with patch.object(PlanetaryComputerIngestor, "__init__", lambda self: None):
+        ingestor = PlanetaryComputerIngestor()
+        ingestor.catalog = MagicMock()
+        ingestor.catalog.search.return_value.items.return_value = iter([MagicMock(id="rtc", assets={"vv": asset})])
+        product = ingestor.search_product("rtc")
+
+        ingestor._fetch = MagicMock(return_value=data)
+        _asset, fetched = ingestor.fetch_asset(product, "vv")
+        assert fetched == data
+
+        ingestor._fetch = MagicMock(return_value=b"tampered")
+        with pytest.raises(AssetIntegrityError):
+            ingestor.fetch_asset(product, "vv")

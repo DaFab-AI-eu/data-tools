@@ -12,6 +12,7 @@ from .errors import (
 )
 from .copernicus import CopernicusIngestor
 from .ingest_tool import DasiProductHandler
+from .planetary_computer import PlanetaryComputerIngestor
 from .helpers import media_subtype
 
 __version__ = version("pydafab")
@@ -27,5 +28,6 @@ __all__ = [
     "ProductNotFoundError",
     "CopernicusIngestor",
     "DasiProductHandler",
+    "PlanetaryComputerIngestor",
     "media_subtype",
 ]
