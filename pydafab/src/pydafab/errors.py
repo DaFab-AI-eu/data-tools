@@ -49,6 +49,14 @@ class AssetFetchError(RuntimeError):
         return name
 
 
+class AssetIntegrityError(RuntimeError):
+    """A downloaded Asset does not match the metadata that describes it."""
+
+    def __str__(self):
+        product_id, asset_name, reason = self.args
+        return f"Asset integrity check failed for {product_id}/{asset_name}: {reason}"
+
+
 class ProductFetchError(RuntimeError):
     """Fetching the Product failed."""
 
