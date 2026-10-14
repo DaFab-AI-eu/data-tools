@@ -6,7 +6,11 @@ This module provides the CopernicusIngestor class for querying and retrieving pr
 """
 
 import logging
+from functools import cached_property
 from typing import Any, Iterator
+
+import boto3
+from botocore.config import Config
 
 from .errors import AssetFetchError
 from .ingestor import StacIngestor, Item
@@ -27,6 +31,8 @@ S3_RETRYS = 3
 class CopernicusIngestor(StacIngestor):
     """Ingests and manages Copernicus STAC catalog products and assets."""
 
+    source = "CDSE"
+
     def __init__(
         self,
         stac_catalog: str = "https://stac.dataspace.copernicus.eu/v1",
@@ -36,9 +42,7 @@ class CopernicusIngestor(StacIngestor):
         super().__init__(stac_catalog=stac_catalog, verbose=verbose)
         self.s3_endpoint = s3_endpoint
 
-        if s3_endpoint == "https://eodata.dataspace.copernicus.eu":
-            self.source = "CDSE"
-        elif s3_endpoint == "https://eodata.cloudferro.com":
+        if s3_endpoint == "https://eodata.cloudferro.com":
             self.source = "CREODIAS"
 
         self.catalog.add_conforms_to("ITEM_SEARCH")
@@ -46,23 +50,21 @@ class CopernicusIngestor(StacIngestor):
     def __repr__(self) -> str:
         return f"<CopernicusIngestor:catalog={self.catalog.id},verbose={self.verbose}>"
 
-    def _fetch(self, href: str) -> bytes:
-        import boto3
-        from botocore.config import Config
-
-        logger.debug("Fetching S3 object from %s using endpoint %s", href, self.s3_endpoint)
-
+    @cached_property
+    def _s3(self):
         s3_config = Config(
             connect_timeout=S3_CONNECT_TIMEOUT,
             read_timeout=S3_READ_TIMEOUT,
             retries={"max_attempts": S3_RETRYS, "mode": "standard"},
         )
+        return boto3.resource(service_name="s3", endpoint_url=self.s3_endpoint, config=s3_config)
+
+    def _fetch(self, href: str) -> bytes:
+        logger.debug("Fetching S3 object from %s using endpoint %s", href, self.s3_endpoint)
 
         try:
-            s3 = boto3.resource(service_name="s3", endpoint_url=self.s3_endpoint, config=s3_config)
-            bucket, key = href.lstrip("s3://").split("/", 1)
-            response = s3.Object(bucket, key).get()["Body"]  # type: ignore
-            return response.read()
+            bucket, key = href.removeprefix("s3://").split("/", 1)
+            return self._s3.Object(bucket, key).get()["Body"].read()
         except Exception as e:
             raise AssetFetchError(href) from e
 

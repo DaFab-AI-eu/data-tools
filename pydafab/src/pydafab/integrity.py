@@ -14,19 +14,23 @@ _MULTIHASHERS: dict[bytes, Callable[..., Any]] = {
 }
 
 
-def validate_asset_data(product_id: str, asset_name: str, asset: Any, data: bytes) -> None:
+def validate_asset_data(
+    product_id: str,
+    asset_name: str,
+    data: bytes,
+    expected_size: Any = None,
+    checksum: Any = None,
+) -> None:
     """Check data against the STAC file:size and file:checksum describing the Asset.
 
     Empty data always fails: Dasi accepts a zero-length record but cannot
-    retrieve one. Absent fields are not checked. Malformed or unsupported
-    ones raise AssetIntegrityError, as does data that does not match them.
+    retrieve one. A None size or checksum is not checked. A malformed or
+    unsupported one raises AssetIntegrityError, as does data that does not
+    match it. The checksum is a hex-encoded multihash.
     """
     if not data:
         raise AssetIntegrityError(product_id, asset_name, "no data")
 
-    extra_fields = asset.extra_fields
-
-    expected_size = extra_fields.get("file:size")
     if expected_size is not None:
         try:
             expected_size = int(expected_size)
@@ -37,12 +41,11 @@ def validate_asset_data(product_id: str, asset_name: str, asset: Any, data: byte
                 product_id, asset_name, f"{len(data)} bytes, expected {expected_size}"
             )
 
-    encoded = extra_fields.get("file:checksum")
-    if encoded is None:
+    if checksum is None:
         return
 
     try:
-        multihash = bytes.fromhex(encoded)
+        multihash = bytes.fromhex(checksum)
     except (TypeError, ValueError) as e:
         raise AssetIntegrityError(product_id, asset_name, "malformed file:checksum") from e
 

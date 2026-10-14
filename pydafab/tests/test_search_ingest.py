@@ -304,3 +304,77 @@ def test_fetch_asset_verifies_planetary_computer_md5():
         ingestor._fetch = MagicMock(return_value=b"tampered")
         with pytest.raises(AssetIntegrityError):
             ingestor.fetch_asset(product, "vv")
+
+
+def planetary_computer_ingestor() -> PlanetaryComputerIngestor:
+    with patch("pydafab.ingestor.Client.open"):
+        return PlanetaryComputerIngestor()
+
+
+def test_planetary_computer_signs_once_per_container():
+    ingestor = planetary_computer_ingestor()
+    signed = MagicMock()
+    signed.json.return_value = {
+        "msft:expiry": "2999-01-01T00:00:00Z",
+        "href": "https://account.blob.core.windows.net/container/a.tiff?se=2999&sig=secret",
+    }
+    blob = MagicMock(content=b"data")
+    ingestor._session = MagicMock()
+    ingestor._session.get.side_effect = [signed, blob, blob]
+
+    assert ingestor._fetch("https://account.blob.core.windows.net/container/a.tiff") == b"data"
+    assert ingestor._fetch("https://account.blob.core.windows.net/container/b.tiff") == b"data"
+
+    urls = [call.args[0] for call in ingestor._session.get.call_args_list]
+    assert urls == [
+        "https://planetarycomputer.microsoft.com/api/sas/v1/sign",
+        "https://account.blob.core.windows.net/container/a.tiff?se=2999&sig=secret",
+        "https://account.blob.core.windows.net/container/b.tiff?se=2999&sig=secret",
+    ]
+
+
+def test_planetary_computer_renews_an_expired_token():
+    ingestor = planetary_computer_ingestor()
+    signed = MagicMock()
+    signed.json.return_value = {
+        "msft:expiry": "2000-01-01T00:00:00Z",
+        "href": "https://account.blob.core.windows.net/container/a.tiff?sig=secret",
+    }
+    ingestor._session = MagicMock()
+    ingestor._session.get.side_effect = [signed, MagicMock(content=b"data"), signed, MagicMock(content=b"data")]
+
+    ingestor._fetch("https://account.blob.core.windows.net/container/a.tiff")
+    ingestor._fetch("https://account.blob.core.windows.net/container/b.tiff")
+
+    assert ingestor._session.get.call_count == 4
+
+
+def test_planetary_computer_wraps_a_malformed_sign_response():
+    ingestor = planetary_computer_ingestor()
+    ingestor._session = MagicMock()
+    ingestor._session.get.return_value.json.return_value = {"error": "nope"}
+
+    with pytest.raises(AssetFetchError):
+        ingestor._fetch("https://account.blob.core.windows.net/container/a.tiff")
+
+
+def test_planetary_computer_fetches_api_assets_unsigned():
+    ingestor = planetary_computer_ingestor()
+    ingestor._session = MagicMock()
+    ingestor._session.get.return_value.content = b"png"
+    href = "https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=c&item=i"
+
+    assert ingestor._fetch(href) == b"png"
+    assert [call.args[0] for call in ingestor._session.get.call_args_list] == [href]
+
+
+def test_copernicus_fetch_splits_bucket_and_key():
+    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
+        ingestor = CopernicusIngestor()
+        ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
+        ingestor._s3 = MagicMock()
+        ingestor._s3.Object.return_value.get.return_value = {"Body": MagicMock(read=lambda: b"data")}
+
+        assert ingestor._fetch("s3://sentinel-1/path/to/key") == b"data"
+
+    ingestor._s3.Object.assert_called_once_with("sentinel-1", "path/to/key")

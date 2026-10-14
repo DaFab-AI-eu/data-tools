@@ -12,7 +12,7 @@ import os
 import sys
 
 from logging_setup import setup_logging
-from pydafab import INGESTORS, AssetNotFoundError, DasiProductHandler
+from pydafab import INGESTORS, AssetIntegrityError, AssetNotFoundError, DasiProductHandler
 from pydafab.helpers import media_subtype
 
 __copyright__ = "Copyright 2025, ECMWF"
@@ -69,8 +69,7 @@ def main():
 
     setup_logging(args.verbose)
 
-    ingestor = INGESTORS[args.collections](verbose=args.verbose)
-    handler = DasiProductHandler(ingestor.source, args.config_dir)
+    handler = DasiProductHandler(INGESTORS[args.collections].source, args.config_dir)
 
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -97,7 +96,7 @@ def main():
                 with open(asset_output_file, "wb") as of:
                     of.write(data)
                 logger.info("Asset [%s] saved to: %s", asset_name, asset_output_file)
-        except AssetNotFoundError as e:
+        except (AssetNotFoundError, AssetIntegrityError) as e:
             sys.exit(str(e))
 
 

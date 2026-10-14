@@ -9,7 +9,7 @@ import logging
 
 from typing import Any, Iterator
 
-from pystac import Item
+from pystac import Asset, Item
 from pystac_client import Client
 from pystac_client.stac_api_io import StacApiIO
 from requests import RequestException
@@ -30,6 +30,8 @@ PYSTAC_TIMEOUT = 60
 class StacIngestor:
     """Base class for data ingestion functionality."""
 
+    source = "unknown"
+
     def __init__(self, stac_catalog: str, verbose: bool = False):
         retry = Retry(
             total=5,
@@ -43,7 +45,6 @@ class StacIngestor:
         self.catalog = Client.open(url=stac_catalog, stac_io=stac_io)
         self._session = stac_io.session
         self.verbose = verbose
-        self.source = "unknown"
 
     def __repr__(self) -> str:
         return f"<StacIngestor:verbose={self.verbose}>"
@@ -51,6 +52,10 @@ class StacIngestor:
     def _fetch(self, href: str) -> bytes:
         """Download the bytes an Asset href points to."""
         raise NotImplementedError
+
+    def _checksum(self, asset: Asset) -> str | None:
+        """The hex-encoded multihash describing the Asset, or None if it has none."""
+        return asset.extra_fields.get("file:checksum")
 
     def search(self, params: dict[str, Any]) -> Iterator[Item]:
         """
@@ -136,7 +141,7 @@ class StacIngestor:
 
         data = self._fetch(asset.href)
 
-        validate_asset_data(product.id, asset_key, asset, data)
+        validate_asset_data(product.id, asset_key, data, asset.extra_fields.get("file:size"), self._checksum(asset))
 
         logger.debug(
             "Fetched asset: %s from product: %s, size: %d bytes",

@@ -14,6 +14,7 @@ from logging_setup import setup_logging
 from pydafab import (
     INGESTORS,
     AssetFetchError,
+    AssetIntegrityError,
     AssetNotFoundError,
     DasiProductHandler,
     ProductFetchError,
@@ -81,7 +82,13 @@ def main():
 
         requested = [name for name in args.asset_names.split(",") if name]
         handler.archive_assets(ingestor, product, requested, modifier)
-    except (ProductNotFoundError, ProductFetchError, AssetNotFoundError, AssetFetchError) as e:
+    except (
+        ProductNotFoundError,
+        ProductFetchError,
+        AssetNotFoundError,
+        AssetFetchError,
+        AssetIntegrityError,
+    ) as e:
         sys.exit(str(e))
 
 

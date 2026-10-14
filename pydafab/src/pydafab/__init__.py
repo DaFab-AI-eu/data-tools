@@ -36,5 +36,6 @@ __all__ = [
     "CopernicusIngestor",
     "DasiProductHandler",
     "PlanetaryComputerIngestor",
+    "StacIngestor",
     "media_subtype",
 ]
