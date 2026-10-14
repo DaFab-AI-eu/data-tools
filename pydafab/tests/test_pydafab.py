@@ -25,7 +25,7 @@ def test_copernicus_ingestor_initialization():
     with patch("pydafab.ingestor.Client.open", return_value=MagicMock()):
         ci = CopernicusIngestor()
         assert isinstance(ci, CopernicusIngestor)
-        si = StacIngestor("https://example.com", "https://s3.example.com")
+        si = StacIngestor("https://example.com")
         assert isinstance(si, StacIngestor)
 
 

@@ -5,10 +5,9 @@ from typing import Iterator, Any
 from pystac import Item
 from pydasi import Dasi
 
-from pydafab.dasi_copernicus import CopernicusKey
-
-from .copernicus import StacIngestor
+from .dasi_copernicus import CopernicusKey
 from .errors import AssetIntegrityError, AssetNotFoundError
+from .ingestor import StacIngestor
 
 logger = logging.getLogger(__name__)
 

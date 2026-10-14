@@ -6,8 +6,13 @@ This module provides the CopernicusIngestor class for querying and retrieving pr
 """
 
 import logging
+from functools import cached_property
 from typing import Any, Iterator
 
+import boto3
+from botocore.config import Config
+
+from .errors import AssetFetchError
 from .ingestor import StacIngestor, Item
 
 logger = logging.getLogger(__name__)
@@ -15,9 +20,18 @@ logger = logging.getLogger(__name__)
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
 
+# Timeout in seconds for S3 connect requests
+S3_CONNECT_TIMEOUT = 10
+# Timeout in seconds for S3 read requests
+S3_READ_TIMEOUT = 60
+# Number of retries for S3 requests
+S3_RETRYS = 3
+
 
 class CopernicusIngestor(StacIngestor):
     """Ingests and manages Copernicus STAC catalog products and assets."""
+
+    source = "CDSE"
 
     def __init__(
         self,
@@ -25,17 +39,34 @@ class CopernicusIngestor(StacIngestor):
         s3_endpoint: str = "https://eodata.dataspace.copernicus.eu",
         verbose: bool = False,
     ) -> None:
-        super().__init__(stac_catalog=stac_catalog, s3_endpoint=s3_endpoint, verbose=verbose)
+        super().__init__(stac_catalog=stac_catalog, verbose=verbose)
+        self.s3_endpoint = s3_endpoint
 
-        if s3_endpoint == "https://eodata.dataspace.copernicus.eu":
-            self.source = "CDSE"
-        elif s3_endpoint == "https://eodata.cloudferro.com":
+        if s3_endpoint == "https://eodata.cloudferro.com":
             self.source = "CREODIAS"
 
         self.catalog.add_conforms_to("ITEM_SEARCH")
 
     def __repr__(self) -> str:
         return f"<CopernicusIngestor:catalog={self.catalog.id},verbose={self.verbose}>"
+
+    @cached_property
+    def _s3(self):
+        s3_config = Config(
+            connect_timeout=S3_CONNECT_TIMEOUT,
+            read_timeout=S3_READ_TIMEOUT,
+            retries={"max_attempts": S3_RETRYS, "mode": "standard"},
+        )
+        return boto3.resource(service_name="s3", endpoint_url=self.s3_endpoint, config=s3_config)
+
+    def _fetch(self, href: str) -> bytes:
+        logger.debug("Fetching S3 object from %s using endpoint %s", href, self.s3_endpoint)
+
+        try:
+            bucket, key = href.removeprefix("s3://").split("/", 1)
+            return self._s3.Object(bucket, key).get()["Body"].read()
+        except Exception as e:
+            raise AssetFetchError(href) from e
 
     def __make_search_params(self, params: dict[str, Any]) -> dict[str, Any]:
         """

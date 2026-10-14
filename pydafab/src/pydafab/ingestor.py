@@ -9,13 +9,13 @@ import logging
 
 from typing import Any, Iterator
 
-from pystac import Item
+from pystac import Asset, Item
 from pystac_client import Client
 from pystac_client.stac_api_io import StacApiIO
 from requests import RequestException
 from urllib3.util import Retry
 
-from .errors import AssetFetchError, AssetNotFoundError, ProductFetchError, ProductNotFoundError
+from .errors import AssetNotFoundError, ProductFetchError, ProductNotFoundError
 from .integrity import validate_asset_data
 
 logger = logging.getLogger(__name__)
@@ -25,18 +25,14 @@ __license__ = "Apache License Version 2.0"
 
 # Timeout in seconds for STAC API requests
 PYSTAC_TIMEOUT = 60
-# Timeout in seconds for S3 connect requests
-S3_CONNECT_TIMEOUT = 10
-# Timeout in seconds for S3 read requests
-S3_READ_TIMEOUT = 60
-# Number of retries for S3 requests
-S3_RETRYS = 3
 
 
 class StacIngestor:
     """Base class for data ingestion functionality."""
 
-    def __init__(self, stac_catalog: str, s3_endpoint: str, verbose: bool = False):
+    source = "unknown"
+
+    def __init__(self, stac_catalog: str, verbose: bool = False):
         retry = Retry(
             total=5,
             backoff_factor=8,
@@ -48,32 +44,18 @@ class StacIngestor:
         stac_io = StacApiIO(timeout=PYSTAC_TIMEOUT, max_retries=retry)
         self.catalog = Client.open(url=stac_catalog, stac_io=stac_io)
         self._session = stac_io.session
-        self.s3_endpoint = s3_endpoint
         self.verbose = verbose
-        self.source = "unknown"
 
     def __repr__(self) -> str:
         return f"<StacIngestor:verbose={self.verbose}>"
 
-    def _fetch_s3(self, href: str) -> bytes:
-        import boto3
-        from botocore.config import Config
+    def _fetch(self, href: str) -> bytes:
+        """Download the bytes an Asset href points to."""
+        raise NotImplementedError
 
-        logger.debug("Fetching S3 object from %s using endpoint %s", href, self.s3_endpoint)
-
-        s3_config = Config(
-            connect_timeout=S3_CONNECT_TIMEOUT,
-            read_timeout=S3_READ_TIMEOUT,
-            retries={"max_attempts": S3_RETRYS, "mode": "standard"},
-        )
-
-        try:
-            s3 = boto3.resource(service_name="s3", endpoint_url=self.s3_endpoint, config=s3_config)
-            bucket, key = href.lstrip("s3://").split("/", 1)
-            response = s3.Object(bucket, key).get()["Body"]  # type: ignore
-            return response.read()
-        except Exception as e:
-            raise AssetFetchError(href) from e
+    def _checksum(self, asset: Asset) -> str | None:
+        """The hex-encoded multihash describing the Asset, or None if it has none."""
+        return asset.extra_fields.get("file:checksum")
 
     def search(self, params: dict[str, Any]) -> Iterator[Item]:
         """
@@ -157,9 +139,9 @@ class StacIngestor:
 
         asset = product.assets[asset_key]
 
-        data = self._fetch_s3(asset.href)
+        data = self._fetch(asset.href)
 
-        validate_asset_data(product.id, asset_key, asset, data)
+        validate_asset_data(product.id, asset_key, data, asset.extra_fields.get("file:size"), self._checksum(asset))
 
         logger.debug(
             "Fetched asset: %s from product: %s, size: %d bytes",
