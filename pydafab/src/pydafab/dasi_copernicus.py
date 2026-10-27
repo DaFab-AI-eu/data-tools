@@ -48,8 +48,12 @@ def _sanitize(value: object) -> str:
 
 class CopernicusKey(dict):
     def to_dasi_query(self) -> dict:
-        """Convert to DASI query format. archive() takes scalars, list/retrieve() need lists."""
-        return {k: [v] for k, v in self.items()}
+        """Convert to DASI query format. archive() takes scalars, list/retrieve() need lists.
+
+        Values are lowercased: DASI stores keys lowercase but matches schema constraints
+        against the query as given.
+        """
+        return {k: [v.lower()] for k, v in self.items()}
 
     @classmethod
     def from_product_id(

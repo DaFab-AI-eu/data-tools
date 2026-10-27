@@ -3,6 +3,7 @@ Unit tests for Copernicus search and ingest functionality.
 """
 
 import hashlib
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -247,6 +248,53 @@ def test_retrieve_assets_raises_on_empty_archived_asset(mock_dasi, dummy_product
         list(tool.retrieve_assets(dummy_product.id, ["TCI_20m"]))
 
     assets.retrieve.assert_not_called()
+
+
+def dasi_record(data=b"data"):
+    return SimpleNamespace(key={"mediatype": "image_jp2"}, length=len(data), data=data)
+
+
+@patch("pydafab.ingest_tool.Dasi")
+def test_queries_dasi_in_lowercase(mock_dasi, dummy_product, tmp_path):
+    assets = MagicMock()
+    assets.list.return_value = [dasi_record()]
+    assets.retrieve.return_value = [dasi_record()]
+    mock_dasi.side_effect = [MagicMock(), assets]
+    tool = DasiProductHandler("CDSE", str(tmp_path))
+
+    list(tool.retrieve_assets(dummy_product.id, ["TCI_20m"]))
+
+    for query in (assets.list.call_args.args[0], assets.retrieve.call_args.args[0]):
+        values = [v for vs in query.values() for v in vs]
+        assert values == [v.lower() for v in values]
+
+
+@patch("pydafab.ingest_tool.Dasi")
+def test_retrieve_assets_returns_requested_names(mock_dasi, dummy_product, tmp_path):
+    assets = MagicMock()
+    assets.list.side_effect = [[dasi_record()], [dasi_record()]]
+    assets.retrieve.side_effect = [[dasi_record(b"tci")], [dasi_record(b"wvp")]]
+    mock_dasi.side_effect = [MagicMock(), assets]
+    tool = DasiProductHandler("CDSE", str(tmp_path))
+
+    retrieved = list(tool.retrieve_assets(dummy_product.id, ["TCI_20m", "WVP_10m"]))
+
+    assert retrieved == [("TCI_20m", "image_jp2", b"tci"), ("WVP_10m", "image_jp2", b"wvp")]
+
+
+@patch("pydafab.ingest_tool.Dasi")
+def test_archive_assets_skips_archived_assets(mock_dasi, dummy_product, tmp_path):
+    assets = MagicMock()
+    assets.list.side_effect = [[dasi_record()], []]
+    mock_dasi.side_effect = [MagicMock(), assets]
+    tool = DasiProductHandler("CDSE", str(tmp_path))
+    ingestor = MagicMock()
+    ingestor.fetch_asset.return_value = (MagicMock(), b"data")
+
+    tool.archive_assets(ingestor, dummy_product, ["TCI_20m", "WVP_10m"])
+
+    ingestor.fetch_asset.assert_called_once_with(dummy_product, "WVP_10m")
+    assert assets.archive.call_count == 1
 
 
 def test_fetch_product_raises_on_request_error(dummy_product):

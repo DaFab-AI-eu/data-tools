@@ -35,12 +35,8 @@ class DasiProductHandler:
             found = True
         return found
 
-    def _list_assets(self, product_id: str) -> set[str]:
-        existing = set()
-        for item in self.dasi_assets.list(self._build_query(product_id)):
-            if item.key.has('asset_name'):
-                existing.add(item.key['asset_name'])
-        return existing
+    def _asset_records(self, product_id: str, asset_name: str) -> list:
+        return list(self.dasi_assets.list(self._build_query(product_id, asset_name)))
 
     def archive_product(
         self, ingestor: StacIngestor, product: Item, modifier: Any = None
@@ -94,9 +90,8 @@ class DasiProductHandler:
         if missing:
             raise AssetNotFoundError(", ".join(missing), product.id)
 
-        existing_assets = self._list_assets(product.id)
-        skipped = existing_assets & set(asset_names)
-        assets_to_fetch = [name for name in asset_names if name not in existing_assets]
+        skipped = {name for name in asset_names if self._asset_records(product.id, name)}
+        assets_to_fetch = [name for name in asset_names if name not in skipped]
 
         if skipped:
             logger.info(
@@ -149,36 +144,25 @@ class DasiProductHandler:
         Yields:
             Tuples of (asset_name, mediatype, asset_data) per matching asset.
         """
-        base_query = self._build_query(product_id)
+        records = {name: self._asset_records(product_id, name) for name in asset_names}
 
-        available: dict[str, str] = {}
-        for item in self.dasi_assets.list(base_query):
-            name = item.key['asset_name']
-            mediatype = item.key['mediatype']
-            if name in available:
-                assert available[name] == mediatype, (
-                    f"Multiple mediatypes for {product_id}/{name}: {available[name]!r}, {mediatype!r}"
-                )
+        missing = sorted(name for name, found in records.items() if not found)
+        if missing:
+            raise AssetNotFoundError(", ".join(missing), product_id)
+
+        mediatypes = {}
+        for name, found in records.items():
+            types = {item.key['mediatype'] for item in found}
+            assert len(types) == 1, f"Multiple mediatypes for {product_id}/{name}: {sorted(types)}"
             # Dasi accepts a zero-length record but aborts retrieving one on an
             # fdb assertion that names no key. Ingestion rejects empty data, so
             # this only catches records written before that check existed; drop
             # it once no archive can hold one.
-            if item.length == 0 and name in asset_names:
+            if any(item.length == 0 for item in found):
                 raise AssetIntegrityError(product_id, name, "archived record is empty")
-            available[name] = mediatype
+            mediatypes[name] = types.pop()
 
-        missing = sorted(set(asset_names) - available.keys())
-        if missing:
-            raise AssetNotFoundError(", ".join(missing), product_id)
-
-        wanted = {name: available[name] for name in asset_names if name in available}
-        if not wanted:
-            return
-
-        full_query = {
-            **base_query,
-            'asset_name': list(wanted),
-            'mediatype': sorted(set(wanted.values())),
-        }
-        for r in self.dasi_assets.retrieve(full_query):
-            yield r.key['asset_name'], r.key['mediatype'], bytes(r.data)
+        for name, mediatype in mediatypes.items():
+            query = {**self._build_query(product_id, name), 'mediatype': [mediatype]}
+            for r in self.dasi_assets.retrieve(query):
+                yield name, mediatype, bytes(r.data)
