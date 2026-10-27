@@ -203,6 +203,24 @@ def test_fetch_asset_accepts_matching_size_and_checksum(dummy_product):
     assert fetched == data
 
 
+
+@pytest.mark.parametrize("digest,accepted", [(hashlib.md5, True), (lambda d: hashlib.sha3_256(d), False)])
+def test_fetch_asset_reads_cdse_mislabelled_md5(dummy_product, digest, accepted):
+    data = b"data"
+    asset = dummy_product.assets["TCI_20m"]
+    asset.href = "s3://bucket/key"
+    asset.extra_fields = {"file:checksum": f"1610{digest(data).hexdigest()[:32]}"}
+
+    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
+        ingestor = CopernicusIngestor()
+        ingestor._fetch = MagicMock(return_value=data)
+
+        if accepted:
+            assert ingestor.fetch_asset(dummy_product, "TCI_20m")[1] == data
+        else:
+            with pytest.raises(AssetIntegrityError):
+                ingestor.fetch_asset(dummy_product, "TCI_20m")
+
 def test_fetch_asset_raises_on_empty_data(dummy_product):
     asset = dummy_product.assets["TCI_20m"]
     asset.href = "s3://bucket/key"

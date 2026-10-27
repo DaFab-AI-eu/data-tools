@@ -12,8 +12,11 @@ from typing import Any, Iterator
 import boto3
 from botocore.config import Config
 
+from pystac import Asset
+
 from .errors import AssetFetchError
 from .ingestor import StacIngestor, Item
+from .integrity import MD5_MULTIHASH_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +29,8 @@ S3_CONNECT_TIMEOUT = 10
 S3_READ_TIMEOUT = 60
 # Number of retries for S3 requests
 S3_RETRYS = 3
+# Multihash prefix CDSE puts on the MD5 of Sentinel-1 COG assets: SHA3-256 truncated to 16 bytes
+MISLABELLED_MD5_PREFIX = "1610"
 
 
 class CopernicusIngestor(StacIngestor):
@@ -67,6 +72,17 @@ class CopernicusIngestor(StacIngestor):
             return self._s3.Object(bucket, key).get()["Body"].read()
         except Exception as e:
             raise AssetFetchError(href) from e
+
+    def _checksum(self, asset: Asset) -> str | None:
+        """The STAC file extension requires a multihash in file:checksum.
+
+        CDSE breaks the spec for Sentinel-1 COG assets by labelling their MD5 as a
+        truncated SHA3-256, so relabel it as the MD5 it is.
+        """
+        checksum = super()._checksum(asset)
+        if checksum is not None and checksum.startswith(MISLABELLED_MD5_PREFIX) and len(checksum) == 36:
+            return MD5_MULTIHASH_PREFIX + checksum[len(MISLABELLED_MD5_PREFIX):]
+        return checksum
 
     def __make_search_params(self, params: dict[str, Any]) -> dict[str, Any]:
         """
