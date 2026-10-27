@@ -2,13 +2,17 @@
 Unit tests for Copernicus search and ingest functionality.
 """
 
+import hashlib
+from unittest.mock import MagicMock, patch
+
 import pytest
 from requests import RequestException
-from unittest.mock import MagicMock, patch
+
 from pydafab.copernicus import CopernicusIngestor
 from pydafab.dasi_copernicus import CopernicusKey
-from pydafab.errors import AssetFetchError, AssetNotFoundError, ProductFetchError
+from pydafab.errors import AssetFetchError, AssetIntegrityError, AssetNotFoundError, ProductFetchError
 from pydafab.ingest_tool import DasiProductHandler
+from pydafab.planetary_computer import PlanetaryComputerIngestor
 
 
 @pytest.fixture
@@ -54,6 +58,32 @@ def test_make_asset_key_from_product(dummy_product):
     assert key["mediatype"] == "image_jp2"
 
 
+def test_make_key_from_s1_rtc_product_id():
+    key = CopernicusKey.from_product_id("MPC", "S1A_IW_GRDH_1SDV_20211220T182141_20211220T182206_041096_04E1DB_rtc")
+    assert key["source"] == "MPC"
+    assert key["mission"] == "S1A"
+    assert key["mode"] == "IW"
+    assert key["type"] == "GRDH"
+    assert key["takedate"] == "2021-12-20"
+    assert key["polarization"] == "DV"
+    assert key["taketime"] == "182141"
+    assert key["stoptime"] == "182206"
+    assert key["orbit"] == "41096"
+
+
+def test_make_key_from_s1_rtc_product_id_without_datatake():
+    key = CopernicusKey.from_product_id("MPC", "S1A_IW_GRDH_1SDV_20250601T234858_20250601T234923_059459_rtc")
+    assert key["taketime"] == "234858"
+    assert key["stoptime"] == "234923"
+    assert key["orbit"] == "59459"
+
+
+def test_s1_rtc_slices_sharing_a_start_time_get_distinct_keys():
+    shorter = CopernicusKey.from_product_id("MPC", "S1A_IW_GRDH_1SDV_20211220T182141_20211220T182206_041096_04E1DB_rtc")
+    longer = CopernicusKey.from_product_id("MPC", "S1A_IW_GRDH_1SDV_20211220T182141_20211220T182216_041096_04E1DB_rtc")
+    assert shorter != longer
+
+
 @patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
 @patch("pydafab.copernicus.StacIngestor.search")
 def test_search_calls_super(mock_search, mock_init):
@@ -84,13 +114,13 @@ def test_archive_product_and_assets(mock_dasi, mock_init, dummy_product, tmp_pat
         ingestor.verbose = False
         ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
         ingestor.source = "CDSE"
-        tool = DasiProductHandler(ingestor, str(tmp_path))
+        tool = DasiProductHandler(ingestor.source, str(tmp_path))
         ingestor.fetch_product = MagicMock(return_value=({"key": "val"}, b"data"))
         ingestor.fetch_asset = MagicMock(
             return_value=(MagicMock(media_type="image/jp2"), b"data")
         )
-        tool.archive_product(dummy_product)
-        tool.archive_assets(dummy_product, ["TCI_20m", "WVP_10m"])
+        tool.archive_product(ingestor, dummy_product)
+        tool.archive_assets(ingestor, dummy_product, ["TCI_20m", "WVP_10m"])
         assert mock_dasi.return_value.archive.call_count == 3
 
 
@@ -101,10 +131,10 @@ def test_archive_assets_raises_on_missing_asset(mock_dasi, mock_init, dummy_prod
         ingestor = CopernicusIngestor()
         ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
         ingestor.source = "CDSE"
-        tool = DasiProductHandler(ingestor, str(tmp_path))
+        tool = DasiProductHandler(ingestor.source, str(tmp_path))
 
         with pytest.raises(AssetNotFoundError):
-            tool.archive_assets(dummy_product, ["NOT_A_REAL_BAND"])
+            tool.archive_assets(ingestor, dummy_product, ["NOT_A_REAL_BAND"])
 
         mock_dasi.return_value.archive.assert_not_called()
 
@@ -116,11 +146,11 @@ def test_archive_assets_raises_on_fetch_failure(mock_dasi, mock_init, dummy_prod
         ingestor = CopernicusIngestor()
         ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
         ingestor.source = "CDSE"
-        tool = DasiProductHandler(ingestor, str(tmp_path))
+        tool = DasiProductHandler(ingestor.source, str(tmp_path))
         ingestor.fetch_asset = MagicMock(side_effect=AssetFetchError("s3://bucket/key"))
 
         with pytest.raises(AssetFetchError):
-            tool.archive_assets(dummy_product, ["TCI_20m", "WVP_10m"])
+            tool.archive_assets(ingestor, dummy_product, ["TCI_20m", "WVP_10m"])
 
 
 @patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
@@ -129,19 +159,94 @@ def test_retrieve_assets_raises_on_missing_asset(mock_dasi, mock_init, dummy_pro
     with patch.object(CopernicusIngestor, "__init__", lambda self: None):
         ingestor = CopernicusIngestor()
         ingestor.source = "CDSE"
-        tool = DasiProductHandler(ingestor, str(tmp_path))
+        tool = DasiProductHandler(ingestor.source, str(tmp_path))
 
         with pytest.raises(AssetNotFoundError):
             list(tool.retrieve_assets(dummy_product.id, ["NOT_A_REAL_BAND"]))
 
 
-def test_fetch_s3_raises_on_boto_error():
+def test_fetch_raises_on_boto_error():
     with patch.object(CopernicusIngestor, "__init__", lambda self: None):
         ingestor = CopernicusIngestor()
         ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
         with patch("boto3.resource", side_effect=Exception("connection refused")):
             with pytest.raises(AssetFetchError):
-                ingestor._fetch_s3("s3://bucket/key")
+                ingestor._fetch("s3://bucket/key")
+
+
+def test_fetch_asset_accepts_matching_size_and_checksum(dummy_product):
+    data = b"data"
+    asset = dummy_product.assets["TCI_20m"]
+    asset.href = "s3://bucket/key"
+    asset.extra_fields = {
+        "file:size": len(data),
+        "file:checksum": f"1220{hashlib.sha256(data).hexdigest()}",
+    }
+
+    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
+        ingestor = CopernicusIngestor()
+        ingestor._fetch = MagicMock(return_value=data)
+
+        _asset, fetched = ingestor.fetch_asset(dummy_product, "TCI_20m")
+
+    assert fetched == data
+
+
+def test_fetch_asset_raises_on_empty_data(dummy_product):
+    asset = dummy_product.assets["TCI_20m"]
+    asset.href = "s3://bucket/key"
+    asset.extra_fields = {}
+
+    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
+        ingestor = CopernicusIngestor()
+        ingestor._fetch = MagicMock(return_value=b"")
+
+        with pytest.raises(AssetIntegrityError):
+            ingestor.fetch_asset(dummy_product, "TCI_20m")
+
+
+def test_fetch_asset_raises_on_size_mismatch(dummy_product):
+    asset = dummy_product.assets["TCI_20m"]
+    asset.href = "s3://bucket/key"
+    asset.extra_fields = {"file:size": 4}
+
+    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
+        ingestor = CopernicusIngestor()
+        ingestor._fetch = MagicMock(return_value=b"bad")
+
+        with pytest.raises(AssetIntegrityError):
+            ingestor.fetch_asset(dummy_product, "TCI_20m")
+
+
+def test_fetch_asset_raises_on_checksum_mismatch(dummy_product):
+    asset = dummy_product.assets["TCI_20m"]
+    asset.href = "s3://bucket/key"
+    asset.extra_fields = {
+        "file:checksum": f"1220{hashlib.sha256(b'other').hexdigest()}",
+    }
+
+    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
+        ingestor = CopernicusIngestor()
+        ingestor._fetch = MagicMock(return_value=b"data")
+
+        with pytest.raises(AssetIntegrityError):
+            ingestor.fetch_asset(dummy_product, "TCI_20m")
+
+
+@patch("pydafab.ingest_tool.Dasi")
+def test_retrieve_assets_raises_on_empty_archived_asset(mock_dasi, dummy_product, tmp_path):
+    assets = MagicMock()
+    record = MagicMock()
+    record.key = {"asset_name": "TCI_20m", "mediatype": "image_jp2"}
+    record.length = 0
+    assets.list.return_value = [record]
+    mock_dasi.side_effect = [MagicMock(), assets]
+    tool = DasiProductHandler("CDSE", str(tmp_path))
+
+    with pytest.raises(AssetIntegrityError):
+        list(tool.retrieve_assets(dummy_product.id, ["TCI_20m"]))
+
+    assets.retrieve.assert_not_called()
 
 
 def test_fetch_product_raises_on_request_error(dummy_product):
@@ -179,3 +284,97 @@ def test_search_returns_dummy_product(dummy_product):
         assert "TCI_20m" in dummy_product.assets
         assert "WVP_10m" in dummy_product.assets
         assert results[0].self_href == dummy_product.self_href
+
+
+def test_fetch_asset_verifies_planetary_computer_md5():
+    """The Planetary Computer puts a bare MD5 hex in file:checksum, not a multihash."""
+    data = b"data"
+    asset = MagicMock(extra_fields={"file:checksum": hashlib.md5(data).hexdigest()})
+
+    with patch.object(PlanetaryComputerIngestor, "__init__", lambda self: None):
+        ingestor = PlanetaryComputerIngestor()
+        ingestor.catalog = MagicMock()
+        ingestor.catalog.search.return_value.items.return_value = iter([MagicMock(id="rtc", assets={"vv": asset})])
+        product = ingestor.search_product("rtc")
+
+        ingestor._fetch = MagicMock(return_value=data)
+        _asset, fetched = ingestor.fetch_asset(product, "vv")
+        assert fetched == data
+
+        ingestor._fetch = MagicMock(return_value=b"tampered")
+        with pytest.raises(AssetIntegrityError):
+            ingestor.fetch_asset(product, "vv")
+
+
+def planetary_computer_ingestor() -> PlanetaryComputerIngestor:
+    with patch("pydafab.ingestor.Client.open"):
+        return PlanetaryComputerIngestor()
+
+
+def test_planetary_computer_signs_once_per_container():
+    ingestor = planetary_computer_ingestor()
+    signed = MagicMock()
+    signed.json.return_value = {
+        "msft:expiry": "2999-01-01T00:00:00Z",
+        "href": "https://account.blob.core.windows.net/container/a.tiff?se=2999&sig=secret",
+    }
+    blob = MagicMock(content=b"data")
+    ingestor._session = MagicMock()
+    ingestor._session.get.side_effect = [signed, blob, blob]
+
+    assert ingestor._fetch("https://account.blob.core.windows.net/container/a.tiff") == b"data"
+    assert ingestor._fetch("https://account.blob.core.windows.net/container/b.tiff") == b"data"
+
+    urls = [call.args[0] for call in ingestor._session.get.call_args_list]
+    assert urls == [
+        "https://planetarycomputer.microsoft.com/api/sas/v1/sign",
+        "https://account.blob.core.windows.net/container/a.tiff?se=2999&sig=secret",
+        "https://account.blob.core.windows.net/container/b.tiff?se=2999&sig=secret",
+    ]
+
+
+def test_planetary_computer_renews_an_expired_token():
+    ingestor = planetary_computer_ingestor()
+    signed = MagicMock()
+    signed.json.return_value = {
+        "msft:expiry": "2000-01-01T00:00:00Z",
+        "href": "https://account.blob.core.windows.net/container/a.tiff?sig=secret",
+    }
+    ingestor._session = MagicMock()
+    ingestor._session.get.side_effect = [signed, MagicMock(content=b"data"), signed, MagicMock(content=b"data")]
+
+    ingestor._fetch("https://account.blob.core.windows.net/container/a.tiff")
+    ingestor._fetch("https://account.blob.core.windows.net/container/b.tiff")
+
+    assert ingestor._session.get.call_count == 4
+
+
+def test_planetary_computer_wraps_a_malformed_sign_response():
+    ingestor = planetary_computer_ingestor()
+    ingestor._session = MagicMock()
+    ingestor._session.get.return_value.json.return_value = {"error": "nope"}
+
+    with pytest.raises(AssetFetchError):
+        ingestor._fetch("https://account.blob.core.windows.net/container/a.tiff")
+
+
+def test_planetary_computer_fetches_api_assets_unsigned():
+    ingestor = planetary_computer_ingestor()
+    ingestor._session = MagicMock()
+    ingestor._session.get.return_value.content = b"png"
+    href = "https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=c&item=i"
+
+    assert ingestor._fetch(href) == b"png"
+    assert [call.args[0] for call in ingestor._session.get.call_args_list] == [href]
+
+
+def test_copernicus_fetch_splits_bucket_and_key():
+    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
+        ingestor = CopernicusIngestor()
+        ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
+        ingestor._s3 = MagicMock()
+        ingestor._s3.Object.return_value.get.return_value = {"Body": MagicMock(read=lambda: b"data")}
+
+        assert ingestor._fetch("s3://sentinel-1/path/to/key") == b"data"
+
+    ingestor._s3.Object.assert_called_once_with("sentinel-1", "path/to/key")

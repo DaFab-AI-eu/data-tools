@@ -7,11 +7,11 @@
     [ procver, takedate, taketime, procdate
         [ orbit, asset_name, mediatype ]]]
 
-# Sentinel-1
-# Example: S1A_IW_GRDH_1SDV_20230516T152430_20230516T152455_123456_ABCDEF_1234  (asset vv, image/tiff)
-#   dir:  CDSE:S1A:IW:GRDH:2023-05-16
-#   file: DV:152430:ABCDEF
-#   key:  123456:vv:image_tiff
-[ source, mission=S1A/S1B/S1C, mode, type, takedate
-    [ polarization, taketime, datatake
+# Sentinel-1 RTC from the Microsoft Planetary Computer
+# Example: S1A_IW_GRDH_1SDV_20211220T182141_20211220T182206_041096_04E1DB_rtc (asset vv, image/tiff)
+#   dir:  MPC:S1A:IW:GRDH:2021-12-20
+#   file: DV:182141:182206
+#   key:  41096:vv:image_tiff
+[ source=MPC, mission=S1A/S1B/S1C/S1D, mode, type, takedate
+    [ polarization, taketime, stoptime
         [ orbit, asset_name, mediatype ]]]
