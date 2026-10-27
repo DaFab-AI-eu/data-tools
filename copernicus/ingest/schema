@@ -13,11 +13,12 @@
     [ gridcode, procver, taketime, procdate
         [ orbit, asset_name, mediatype ]]]
 
-# Sentinel-1 RTC from the Microsoft Planetary Computer
+# Sentinel-1: ESA products from CDSE and RTC derivatives from the Microsoft Planetary Computer.
+# An RTC product keeps its source GRD's identity, so the collection keeps them apart.
 # Example: S1A_IW_GRDH_1SDV_20211220T182141_20211220T182206_041096_04E1DB_rtc (asset vv, image/tiff)
-#   dir:  mpc:s1a:iw:grdh:2021-12-20
+#   dir:  mpc:s1a:sentinel-1-rtc:iw:grdh:2021-12-20
 #   file: dv:182141:182206
 #   key:  41096:vv:image_tiff
-[ source=mpc, mission=s1a/s1b/s1c/s1d, mode, type, takedate
+[ source, mission=s1a/s1b/s1c/s1d, collection, mode, type, takedate
     [ polarization, taketime, stoptime
         [ orbit, asset_name, mediatype ]]]

@@ -26,10 +26,10 @@ The implementation comprises:
 - **`CopernicusIngestor`**: Searches the Copernicus STAC catalogue and retrieves product metadata and assets
 - **`PlanetaryComputerIngestor`**: Searches the Microsoft Planetary Computer STAC catalogue for Sentinel-1 RTC products and retrieves their metadata and assets
 - **`DasiProductHandler`**: Coordinates archive, list, and retrieve operations across DASI stores
-- **`CopernicusKey`**: Maps Sentinel-2 and Sentinel-1 RTC product identifiers to schema-driven DASI keys
+- **`CopernicusKey`**: Maps Sentinel-2, Sentinel-1 and Sentinel-1 RTC product identifiers to schema-driven DASI keys
 - **Command-line tools**: Provide focused search, ingest, stage, and retention operations
 
-The base `StacIngestor` accepts a configurable STAC catalogue; each implementation downloads assets from its own storage. The Copernicus implementation uses the Copernicus Data Space catalogue and S3 EO Data endpoint. The Planetary Computer implementation signs Azure Blob Storage hrefs. Commands pick the catalogue from `--collections` through `INGESTORS`: `sentinel-2-l2a` comes from Copernicus and `sentinel-1-rtc` from the Planetary Computer.
+The base `StacIngestor` accepts a configurable STAC catalogue; each implementation downloads assets from its own storage. The Copernicus implementation uses the Copernicus Data Space catalogue and S3 EO Data endpoint. The Planetary Computer implementation signs Azure Blob Storage hrefs. Commands pick the catalogue from `--collections` through `INGESTORS`: `sentinel-2-l2a`, `sentinel-1-grd` and `sentinel-1-slc` come from Copernicus and `sentinel-1-rtc` from the Planetary Computer.
 
 ### 1.2 DASI Storage Model
 
@@ -41,6 +41,8 @@ DASI Store (one database per acquisition date)
 ```
 
 Sentinel product identifiers are parsed into hierarchical archive keys containing source, mission, acquisition, processing, orbit, and spatial attributes, extended with the asset name and media type. The raw STAC document is archived under the reserved asset name `item`, so a product's metadata and data always live in the same database. Databases are keyed by acquisition date, so whole-database retention removes whole days rather than a tile's entire history. Every key, including the date, is derived from the product ID.
+
+Sentinel-1 keys carry a `collection` key (`sentinel-1-grd`, `sentinel-1-slc` or `sentinel-1-rtc`), read from the product ID. An RTC product keeps the identity of the GRD it was made from, so without it the two would share a key and overwrite each other. A DASI `list` that omits `collection` returns every collection; specify it to select one.
 
 The supplied configuration uses `/data/root`, but the tools remain agnostic to the orchestration and storage environment.
 
@@ -149,7 +151,7 @@ Retention is designed to run as a **blocking scheduled task** — a maintenance 
 | **Product Archive** | Raw STAC documents and selected assets in one DASI store, keyed by acquisition date |
 | **Duplicate Handling** | Existing products and requested assets are skipped |
 | **Data Staging** | Metadata and selected assets written to local files |
-| **Sentinel Support** | Sentinel-2 from Copernicus; Sentinel-1 radiometrically terrain corrected (RTC) from the Planetary Computer |
+| **Sentinel Support** | Sentinel-2 and Sentinel-1 GRD/SLC from Copernicus; Sentinel-1 radiometrically terrain corrected (RTC) from the Planetary Computer |
 | **Storage Lifecycle** | Capacity- and age-based retention, or explicit full-store clearing, with dry-run inspection |
 | **Integration Model** | Python API and command-line tools for automated workflows |
 

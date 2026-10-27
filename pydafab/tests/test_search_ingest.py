@@ -85,6 +85,43 @@ def test_s1_rtc_slices_sharing_a_start_time_get_distinct_keys():
     assert shorter != longer
 
 
+
+@pytest.mark.parametrize(
+    "product_id,collection",
+    [
+        ("S1A_IW_GRDH_1SDV_20250610T171650_20250610T171715_059587_rtc", "sentinel-1-rtc"),
+        ("S1A_IW_GRDH_1SDV_20211220T182141_20211220T182206_041096_04E1DB_rtc", "sentinel-1-rtc"),
+        ("S1A_IW_GRDH_1SDV_20250610T171650_20250610T171715_059587", "sentinel-1-grd"),
+        ("S1A_IW_GRDH_1SDV_20250610T171650_20250610T171715_059587_0765DA", "sentinel-1-grd"),
+        ("S1A_IW_GRDH_1SDV_20250610T171650_20250610T171715_059587_0765DA_D223_COG", "sentinel-1-grd"),
+        ("S1A_IW_SLC__1SDV_20250610T171649_20250610T171717_059587_0765DA_CEB6", "sentinel-1-slc"),
+    ],
+)
+def test_s1_collection_is_read_from_the_product_id(product_id, collection):
+    assert CopernicusKey.from_product_id("CDSE", product_id)["collection"] == collection
+
+
+
+def test_s1_padded_product_type_is_parsed_by_position():
+    key = CopernicusKey.from_product_id("CDSE", "S1A_IW_SLC__1SDV_20250610T171649_20250610T171717_059587_0765DA_CEB6")
+    assert (key["type"], key["polarization"], key["taketime"], key["orbit"]) == ("SLC", "DV", "171649", "59587")
+
+def test_s1_rtc_and_its_source_grd_get_distinct_keys():
+    rtc = CopernicusKey.from_product_id("MPC", "S1A_IW_GRDH_1SDV_20250610T171650_20250610T171715_059587_rtc", "vv")
+    grd = CopernicusKey.from_product_id("MPC", "S1A_IW_GRDH_1SDV_20250610T171650_20250610T171715_059587_0765DA", "vv")
+    assert {k for k in rtc if rtc[k] != grd[k]} == {"collection"}
+
+
+def test_s1_rejects_unsupported_product_type():
+    with pytest.raises(ValueError):
+        CopernicusKey.from_product_id("CDSE", "S1A_IW_RAW__0SDV_20250610T171650_20250610T171715_059587_0765DA_ABCD")
+
+
+def test_key_rejects_item_from_another_collection():
+    item = SimpleNamespace(id="S1A_IW_GRDH_1SDV_20250610T171650_20250610T171715_059587_rtc", collection_id="sentinel-1-grd")
+    with pytest.raises(ValueError):
+        CopernicusKey.from_stac("MPC", item)
+
 @patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
 @patch("pydafab.copernicus.StacIngestor.search")
 def test_search_calls_super(mock_search, mock_init):
