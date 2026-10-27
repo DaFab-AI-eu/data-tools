@@ -106,6 +106,16 @@ def test_search_calls_super(mock_search, mock_init):
         assert mock_search.called
 
 
+
+@pytest.mark.parametrize("collection,filtered", [("sentinel-2-l2a", True), ("sentinel-1-grd", False)])
+@patch("pydafab.copernicus.StacIngestor.search")
+def test_copernicus_filters_cloud_cover_only_for_optical(mock_search, collection, filtered):
+    with patch.object(CopernicusIngestor, "__init__", lambda self: None):
+        params = {"max_items": 1, "collections": collection, "datetime": "2025-01-01/2025-01-02",
+                  "bbox": "6.95,50.65,7.25,50.85", "cloud_cover_max": 20.0}
+        list(CopernicusIngestor().search(params))
+    assert ("filter" in mock_search.call_args.args[0]) == filtered
+
 @patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
 @patch("pydafab.ingest_tool.Dasi")
 def test_archive_product_and_assets(mock_dasi, mock_init, dummy_product, tmp_path):

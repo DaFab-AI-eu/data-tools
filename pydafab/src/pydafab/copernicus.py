@@ -106,17 +106,17 @@ class CopernicusIngestor(StacIngestor):
             "coordinates": [coordinates],
         }
 
-        return {
+        search = {
             "max_items": params["max_items"],
             "collections": params["collections"],
             "datetime": params["datetime"],
             "intersects": aoi,
-            "filter": {
-                "op": "<",
-                "args": [{"property": "eo:cloud_cover"}, params["cloud_cover_max"]],
-            },
             "fields": {"exclude": ["geometry"]},
         }
+        # Sentinel-1 is radar: it has no cloud cover, and the catalogue rejects the filter.
+        if not params["collections"].startswith("sentinel-1"):
+            search["filter"] = {"op": "<", "args": [{"property": "eo:cloud_cover"}, params["cloud_cover_max"]]}
+        return search
 
     def search(self, params: dict[str, Any]) -> Iterator[Item]:
         """
