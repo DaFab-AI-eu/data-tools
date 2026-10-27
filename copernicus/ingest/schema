@@ -6,10 +6,10 @@
 
 # Sentinel-2
 # Example: S2A_MSIL2A_20250322T103741_N0511_R008_T32ULB_20250322T161215  (asset WVP_10m, image/jp2)
-#   dir:  cdse:s2a:msil2a:2025-03-22
+#   dir:  cdse:s2a:sentinel-2-l2a:msil2a:2025-03-22
 #   file: t32ulb:05.11:103741:20250322t161215
 #   key:  8:wvp_10m:image_jp2
-[ source, mission=s2a/s2b/s2c, level, takedate
+[ source, mission=s2a/s2b/s2c, collection, level, takedate
     [ gridcode, procver, taketime, procdate
         [ orbit, asset_name, mediatype ]]]
 

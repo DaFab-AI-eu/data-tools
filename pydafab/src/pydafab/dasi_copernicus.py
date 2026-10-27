@@ -50,6 +50,7 @@ Planetary Computer, share the first seven tokens and differ only in the optional
 
 ITEM_ASSET = "item"
 
+S2_COLLECTIONS = {"MSIL1C": "sentinel-2-l1c", "MSIL2A": "sentinel-2-l2a"}
 S1_COLLECTIONS = {"GRD": "sentinel-1-grd", "SLC": "sentinel-1-slc"}
 
 
@@ -88,7 +89,7 @@ class CopernicusKey(dict):
     @classmethod
     def from_stac(cls, source: str, item: Item, asset_name: str | None = None) -> Self:
         key = cls.from_product_id(source, item.id, asset_name)
-        if "collection" in key and key["collection"] != item.collection_id:
+        if key["collection"] != item.collection_id:
             raise ValueError(f"Product {item.id} is in {item.collection_id}, but its ID names {key['collection']}")
         if asset_name is not None:
             key["mediatype"] = _sanitize(item.assets[asset_name].media_type)
@@ -100,10 +101,13 @@ class CopernicusKey(dict):
         if len(parts) != 7:
             raise ValueError(f"Invalid Sentinel-2 product ID: {stem}")
         mission, level, datatake, baseline, orbit, tile, discriminator = parts
+        if level not in S2_COLLECTIONS:
+            raise ValueError(f"Unsupported Sentinel-2 product level {level!r}: {stem}")
         dt = datetime.strptime(datatake, "%Y%m%dT%H%M%S")
         key = cls(
             source=_sanitize(source),
             mission=mission,
+            collection=S2_COLLECTIONS[level],
             level=level,
             gridcode=tile,
             procver=f"{baseline[1:3]}.{baseline[3:5]}",  # Nxxyy

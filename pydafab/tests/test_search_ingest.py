@@ -44,6 +44,7 @@ def test_make_key_from_product(dummy_product):
     key = CopernicusKey.from_stac("CDSE", dummy_product)
     assert key["source"] == "CDSE"
     assert key["mission"] == "S2C"
+    assert key["collection"] == "sentinel-2-l2a"
     assert key["level"] == "MSIL2A"
     assert key["gridcode"] == "T01UBS"
     assert key["procver"] == "05.11"
@@ -95,9 +96,11 @@ def test_s1_rtc_slices_sharing_a_start_time_get_distinct_keys():
         ("S1A_IW_GRDH_1SDV_20250610T171650_20250610T171715_059587_0765DA", "sentinel-1-grd"),
         ("S1A_IW_GRDH_1SDV_20250610T171650_20250610T171715_059587_0765DA_D223_COG", "sentinel-1-grd"),
         ("S1A_IW_SLC__1SDV_20250610T171649_20250610T171717_059587_0765DA_CEB6", "sentinel-1-slc"),
+        ("S2C_MSIL2A_20250123T230911_N0511_R044_T01UBS_20250124T013809", "sentinel-2-l2a"),
+        ("S2C_MSIL1C_20250123T230911_N0511_R044_T01UBS_20250124T013809", "sentinel-2-l1c"),
     ],
 )
-def test_s1_collection_is_read_from_the_product_id(product_id, collection):
+def test_collection_is_read_from_the_product_id(product_id, collection):
     assert CopernicusKey.from_product_id("CDSE", product_id)["collection"] == collection
 
 
@@ -117,10 +120,22 @@ def test_s1_rejects_unsupported_product_type():
         CopernicusKey.from_product_id("CDSE", "S1A_IW_RAW__0SDV_20250610T171650_20250610T171715_059587_0765DA_ABCD")
 
 
-def test_key_rejects_item_from_another_collection():
-    item = SimpleNamespace(id="S1A_IW_GRDH_1SDV_20250610T171650_20250610T171715_059587_rtc", collection_id="sentinel-1-grd")
+@pytest.mark.parametrize(
+    "product_id,collection_id",
+    [
+        ("S1A_IW_GRDH_1SDV_20250610T171650_20250610T171715_059587_rtc", "sentinel-1-grd"),
+        ("S2C_MSIL1C_20250123T230911_N0511_R044_T01UBS_20250124T013809", "sentinel-2-l2a"),
+    ],
+)
+def test_key_rejects_item_from_another_collection(product_id, collection_id):
+    item = SimpleNamespace(id=product_id, collection_id=collection_id)
     with pytest.raises(ValueError):
         CopernicusKey.from_stac("MPC", item)
+
+
+def test_s2_rejects_unsupported_product_level():
+    with pytest.raises(ValueError):
+        CopernicusKey.from_product_id("CDSE", "S2C_MSIL3X_20250123T230911_N0511_R044_T01UBS_20250124T013809")
 
 @patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
 @patch("pydafab.copernicus.StacIngestor.search")
