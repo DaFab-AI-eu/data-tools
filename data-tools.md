@@ -44,6 +44,8 @@ Sentinel product identifiers are parsed into hierarchical archive keys containin
 
 Sentinel-1 keys carry a `collection` key (`sentinel-1-grd`, `sentinel-1-slc` or `sentinel-1-rtc`), read from the product ID. An RTC product keeps the identity of the GRD it was made from, so without it the two would share a key and overwrite each other. A DASI `list` that omits `collection` returns every collection; specify it to select one.
 
+FDB joins the innermost key values (`orbit:asset_name:mediatype`) into an index key of at most 32 characters by default, which Sentinel-1 annotation assets exceed (e.g. `59587:schema-calibration-iw1-vh:application_xml`). The image sets `FDB_INDEX_TYPE=BTreeIndex64` to allow 64; every process that *writes* to the store needs it. Readers do not, since each index records its own type.
+
 The supplied configuration uses `/data/root`, but the tools remain agnostic to the orchestration and storage environment.
 
 ---
