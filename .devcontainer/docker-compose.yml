@@ -15,8 +15,7 @@ services:
         volumes:
             - ${SSH_AUTH_SOCK}:${SSH_AUTH_SOCK}
             - ~/tools:/tools:cached
-            - metadata:/data/metadata/root
-            - assets:/data/assets/root
+            - dasi:/data/root
 
         # use a ptrace-based debugger C++
         # cap_add:
@@ -32,5 +31,4 @@ services:
         tty: true
 
 volumes:
-  metadata:
-  assets:
+  dasi:

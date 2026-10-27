@@ -41,6 +41,9 @@ Sentinel-1 RTC name on the Microsoft Planetary Computer (8 or 9 tokens):
 """
 
 
+ITEM_ASSET = "item"
+
+
 def _sanitize(value: object) -> str:
     s = str(value).split(";", 1)[0]
     return s.replace("/", "_").replace(":", "_")
@@ -65,6 +68,13 @@ class CopernicusKey(dict):
         if mission.startswith("S1"):
             return cls._from_s1(source, product_id, asset_name)
         raise ValueError(f"Unknown mission prefix in product ID: {product_id}")
+
+    @classmethod
+    def item(cls, source: str, product_id: str) -> Self:
+        """Key of the product's STAC document, archived beside its assets as a reserved asset."""
+        key = cls.from_product_id(source, product_id, ITEM_ASSET)
+        key["mediatype"] = "application_json"
+        return key
 
     @classmethod
     def from_stac(cls, source: str, item: Item, asset_name: str | None = None) -> Self:

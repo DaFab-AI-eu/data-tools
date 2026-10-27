@@ -1,26 +1,21 @@
-"""Reclaim DASI storage by deleting whole asset databases, oldest first.
+"""Reclaim DASI storage by deleting whole databases, oldest first.
 
-The storage path holds the assets and metadata stores (e.g. /data, holding /data/assets/root
-and /data/metadata/root). Each immediate child of a store root is a self-contained FDB
-database directory such as CDSE:S2A:MSIL2A:T48PWA — the only unit that is safe to delete on
-the filesystem.
+Each immediate child of the store root (e.g. /data/root) is a self-contained FDB database
+directory such as cdse:s2a:msil2a:2025-03-22, holding the STAC documents and assets of every
+product acquired that day — the only unit that is safe to delete on the filesystem.
 
 Retention acts only when free disk space falls below the configured threshold. It then
 deletes databases oldest first (by directory mtime) until the free-space target is met or
 the per-run delete-size cap is reached. Databases younger than the minimum age are never
 deleted.
 
-Deletion always removes a database from both stores together. If an asset database has no
-same-named metadata database the run aborts before deleting anything; the reverse is not
-checked — a metadata database without an assets counterpart is ignored.
-
-Pass --clear-all to wipe everything under both store roots (the legacy behaviour). Without
+Pass --clear-all to wipe everything under the store root (the legacy behaviour). Without
 --do-it=true every mode is a dry run that only reports what would be deleted.
 
 Example usage:
     python copernicus/retention.py
-    python copernicus/retention.py --path=/data --do-it=true
-    python copernicus/retention.py --path=/data --clear-all --do-it=true
+    python copernicus/retention.py --root=/data/root --do-it=true
+    python copernicus/retention.py --root=/data/root --clear-all --do-it=true
 
 """
 
@@ -36,8 +31,6 @@ import yaml
 from logging_setup import setup_logging
 
 logger = logging.getLogger(__name__)
-
-STORE_NAMES = ("assets", "metadata")
 
 SIZE_UNITS = {
     "": 1,
@@ -76,10 +69,9 @@ class Policy:
 
 @dataclass(frozen=True)
 class Database:
-    """An asset FDB database directory and its aligned metadata counterpart."""
+    """An FDB database directory under the store root."""
 
-    assets: Path
-    metadata: Path
+    path: Path
     size: int
     mtime: float
 
@@ -87,10 +79,10 @@ class Database:
 def parse_arguments():
     arg_parser = argparse.ArgumentParser("retention_dasi_db")
     arg_parser.add_argument(
-        "--path",
+        "--root",
         type=Path,
-        help="Dasi storage path containing the assets and metadata stores. default: /data",
-        default=Path("/data"),
+        help="Dasi store root holding the database directories. default: /data/root",
+        default=Path("/data/root"),
     )
     arg_parser.add_argument(
         "--config",
@@ -107,7 +99,7 @@ def parse_arguments():
     arg_parser.add_argument(
         "--clear-all",
         action="store_true",
-        help="Wipe everything under both store roots, ignoring the retention policy.",
+        help="Wipe everything under the store root, ignoring the retention policy.",
     )
     arg_parser.add_argument(
         "--verbose",
@@ -151,41 +143,16 @@ def load_policy(config_path):
         raise SystemExit(f"Retention config missing key: {e}")
 
 
-def validate_roots(storage_path):
-    roots = {store: storage_path / store / "root" for store in STORE_NAMES}
-    invalid = [root for root in roots.values() if not root.is_dir() or root.is_symlink()]
-    if invalid:
-        invalid_paths = ", ".join(str(path) for path in invalid)
-        raise SystemExit(f"Dasi store root not found or unsafe (volume not mounted?): {invalid_paths}")
-    return roots
-
-
 def dir_size(path):
     return sum(child.stat().st_size for child in path.rglob("*") if child.is_file() and not child.is_symlink())
 
 
-def scan_databases(assets_root, metadata_root):
-    """List asset databases with their aligned metadata database and combined size.
-
-    Every asset database must have a same-named metadata database; a missing counterpart
-    means the store is in an unexpected state, so we fail loudly rather than proceed.
-    """
-    databases = []
-    unaligned = []
-    for assets in sorted(assets_root.iterdir()):
-        if not assets.is_dir() or assets.is_symlink():
-            continue
-        metadata = metadata_root / assets.name
-        if not metadata.is_dir() or metadata.is_symlink():
-            unaligned.append(assets.name)
-            continue
-        size = dir_size(assets) + dir_size(metadata)
-        databases.append(Database(assets, metadata, size, assets.stat().st_mtime))
-    if unaligned:
-        raise SystemExit(
-            f"Asset databases missing an aligned metadata database under {metadata_root}: " + ", ".join(unaligned)
-        )
-    return databases
+def scan_databases(root):
+    return [
+        Database(path, dir_size(path), path.stat().st_mtime)
+        for path in sorted(root.iterdir())
+        if path.is_dir() and not path.is_symlink()
+    ]
 
 
 def select_for_deletion(databases, *, total, free, min_free_percent, delete_size, min_age_days, now):
@@ -204,11 +171,11 @@ def select_for_deletion(databases, *, total, free, min_free_percent, delete_size
     return selected, freed, target_free
 
 
-def run_retention(storage_path, roots, policy, do_it):
-    usage = shutil.disk_usage(storage_path)
+def run_retention(root, policy, do_it):
+    usage = shutil.disk_usage(root)
     free_pct = usage.free / usage.total * 100
 
-    logger.info("Storage path: %s", storage_path)
+    logger.info("Store root: %s", root)
     logger.info(
         "Free space: %s of %s (%.1f%%), target %.1f%%",
         format_size(usage.free),
@@ -221,7 +188,7 @@ def run_retention(storage_path, roots, policy, do_it):
         logger.info("Free space above threshold; nothing to delete.")
         return
 
-    databases = scan_databases(roots["assets"], roots["metadata"])
+    databases = scan_databases(root)
     selected, freed, target_free = select_for_deletion(
         databases,
         total=usage.total,
@@ -238,10 +205,9 @@ def run_retention(storage_path, roots, policy, do_it):
 
     verb = "Deleting" if do_it else "Would delete"
     for db in selected:
-        logger.info("%s: %s [%s]", verb, db.assets.name, format_size(db.size))
+        logger.info("%s: %s [%s]", verb, db.path.name, format_size(db.size))
         if do_it:
-            shutil.rmtree(db.assets)
-            shutil.rmtree(db.metadata)
+            shutil.rmtree(db.path)
 
     projected_pct = (usage.free + freed) / usage.total * 100
     logger.info("%d database(s), freeing %s (projected free %.1f%%)", len(selected), format_size(freed), projected_pct)
@@ -254,9 +220,9 @@ def run_retention(storage_path, roots, policy, do_it):
         logger.info("Dry run: pass --do-it=true to delete these databases.")
 
 
-def run_clear_all(roots, do_it):
-    children = sorted(child for root in roots.values() for child in root.iterdir())
-    logger.info("Clear-all under: %s", ", ".join(str(root) for root in roots.values()))
+def run_clear_all(root, do_it):
+    children = sorted(root.iterdir())
+    logger.info("Clear-all under: %s", root)
     logger.info("Found %d items", len(children))
 
     for child in children:
@@ -278,15 +244,13 @@ def main():
     setup_logging(args.verbose)
     do_it = args.do_it == "true"
 
-    if not args.path.is_dir():
-        raise SystemExit(f"Dasi storage path not found (volume not mounted?): {args.path}")
-
-    roots = validate_roots(args.path)
+    if not args.root.is_dir() or args.root.is_symlink():
+        raise SystemExit(f"Dasi store root not found or unsafe (volume not mounted?): {args.root}")
 
     if args.clear_all:
-        run_clear_all(roots, do_it)
+        run_clear_all(args.root, do_it)
     else:
-        run_retention(args.path, roots, load_policy(args.config), do_it)
+        run_retention(args.root, load_policy(args.config), do_it)
 
 
 if __name__ == "__main__":

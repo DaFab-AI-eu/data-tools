@@ -1,4 +1,8 @@
 # DASI lowercases every key value, so constraint values must be lowercase to match.
+#
+# Each product's STAC document is archived beside its assets as the reserved asset
+# "item", so a product's metadata and data share a database and are retained together.
+# Databases are keyed by acquisition date: retention removes whole days, never a tile's history.
 
 # Sentinel-2
 # Example: S2A_MSIL2A_20250322T103741_N0511_R008_T32ULB_20250322T161215  (asset WVP_10m, image/jp2)

@@ -33,17 +33,16 @@ The base `StacIngestor` accepts a configurable STAC catalogue; each implementati
 
 ### 1.2 DASI Storage Model
 
-Product metadata and binary assets are stored separately:
+Product metadata and binary assets share one DASI store, defined by `dasi.yml` and `schema`:
 
 ```text
-DASI Storage
-    ├─→ Metadata Store → Raw STAC product documents
-    └─→ Asset Store    → Selected product assets
+DASI Store (one database per acquisition date)
+    └─→ Product → STAC document (reserved asset "item") + selected product assets
 ```
 
-Separate DASI configuration and schema files define each store. Sentinel product identifiers are parsed into hierarchical archive keys containing source, mission, acquisition, processing, orbit, and spatial attributes. Asset keys extend the product key with the asset name and media type.
+Sentinel product identifiers are parsed into hierarchical archive keys containing source, mission, acquisition, processing, orbit, and spatial attributes, extended with the asset name and media type. The raw STAC document is archived under the reserved asset name `item`, so a product's metadata and data always live in the same database. Databases are keyed by acquisition date, so whole-database retention removes whole days rather than a tile's entire history. Every key, including the date, is derived from the product ID.
 
-The supplied configuration uses `/data/metadata/root` and `/data/assets/root`, but the tools remain agnostic to the orchestration and storage environment.
+The supplied configuration uses `/data/root`, but the tools remain agnostic to the orchestration and storage environment.
 
 ---
 
@@ -73,8 +72,8 @@ Product ingestion follows a six-step process:
 
 1. **Product lookup**: Find the requested product ID in the STAC catalogue
 2. **Metadata retrieval**: Download the raw STAC product document
-3. **Key generation**: Parse the Sentinel identifier into a DASI metadata key
-4. **Metadata archive**: Store and flush the product document
+3. **Key generation**: Parse the Sentinel identifier into a DASI key
+4. **Metadata archive**: Store and flush the product document as the reserved asset `item`
 5. **Asset retrieval**: Download each requested asset from S3-compatible storage
 6. **Asset archive**: Add asset name and media type to the key, then store and flush the asset data
 
@@ -108,7 +107,7 @@ Metadata retrieval is mandatory, while asset retrieval is optional and selective
 
 ### 2.4 Retention Operation
 
-Retention provides capacity- and age-driven lifecycle control for both DASI stores. Each immediate child of a store root is a self-contained FDB database directory, and whole directories are the only filesystem-safe unit to remove. The policy is read from `retention.yml`:
+Retention provides capacity- and age-driven lifecycle control for the DASI store. Each immediate child of the store root is a self-contained FDB database directory holding every product acquired on one date, and whole directories are the only filesystem-safe unit to remove. The policy is read from `retention.yml`:
 
 - `min_free_percent`: retention acts only when free disk space is below this, and deletes until it is met again
 - `delete_size`: per-run cap on the bytes reclaimed
@@ -116,29 +115,28 @@ Retention provides capacity- and age-driven lifecycle control for both DASI stor
 
 The workflow:
 
-1. **Store validation**: Confirm that the metadata and asset roots exist
+1. **Store validation**: Confirm that the store root exists
 2. **Threshold check**: Report disk usage; stop when free space is already at or above `min_free_percent`
-3. **Selection**: Enumerate asset database directories, drop any younger than `min_age_days`, and choose the oldest-first (by directory mtime) until the free-space target is met or `delete_size` is reached, whichever comes first
-4. **Aligned removal**: Each selected asset database also removes its same-named (aligned) directory in the metadata store
-5. **Dry-run inspection**: Report each selected database and the projected free space without modifying anything
-6. **Confirmed deletion**: Remove the selected directories only when `--do-it=true` is supplied
+3. **Selection**: Enumerate database directories, drop any younger than `min_age_days`, and choose the oldest-first (by directory mtime) until the free-space target is met or `delete_size` is reached, whichever comes first
+4. **Dry-run inspection**: Report each selected database and the projected free space without modifying anything
+5. **Confirmed deletion**: Remove the selected directories only when `--do-it=true` is supplied
 
 ```bash
 # Dry run
-python copernicus/retention.py --path=/data --config=copernicus/ingest/retention.yml
+python copernicus/retention.py --root=/data/root --config=copernicus/ingest/retention.yml
 
 # Apply the policy
-python copernicus/retention.py --path=/data --config=copernicus/ingest/retention.yml --do-it=true
+python copernicus/retention.py --root=/data/root --config=copernicus/ingest/retention.yml --do-it=true
 
-# Legacy full wipe of both store roots (ignores the policy)
-python copernicus/retention.py --path=/data --clear-all --do-it=true
+# Legacy full wipe of the store root (ignores the policy)
+python copernicus/retention.py --root=/data/root --clear-all --do-it=true
 ```
 
-The store roots are preserved, paths outside them are not selected, and symbolic links are removed without traversing their targets.
+The store root is preserved, paths outside them are not selected, and symbolic links are removed without traversing their targets.
 
 #### Operational Considerations
 
-Retention is designed to run as a **blocking scheduled task** — a maintenance window with no ingest or stage activity — rather than inside the archiving flow itself. Two characteristics motivate this: selection is by directory mtime, which reflects when data was written rather than when it was last needed; and the asset and metadata databases are removed as two consecutive operations rather than one transaction. Both are safe under a dedicated scheduled run.
+Retention is designed to run as a **blocking scheduled task** — a maintenance window with no ingest or stage activity — rather than inside the archiving flow itself, because it removes database directories directly rather than through FDB. Selection is by directory mtime, which reflects when data was written rather than when it was last needed.
 
 ---
 
@@ -148,8 +146,7 @@ Retention is designed to run as a **blocking scheduled task** — a maintenance 
 |------------|----------------|
 | **Catalogue Search** | Collection, datetime, bounding box, cloud cover, and result limits |
 | **Product Lookup** | Exact STAC product ID with optional collection restriction |
-| **Metadata Archive** | Raw STAC documents in a dedicated DASI store |
-| **Asset Archive** | Selected S3 assets in a dedicated DASI store |
+| **Product Archive** | Raw STAC documents and selected assets in one DASI store, keyed by acquisition date |
 | **Duplicate Handling** | Existing products and requested assets are skipped |
 | **Data Staging** | Metadata and selected assets written to local files |
 | **Sentinel Support** | Sentinel-2 from Copernicus; Sentinel-1 radiometrically terrain corrected (RTC) from the Planetary Computer |
