@@ -9,18 +9,18 @@
 # Sentinel-2
 # Example: S2A_MSIL2A_20250322T103741_N0511_R008_T32ULB_20250322T161215  (asset WVP_10m, image/jp2)
 #   dir:  cdse:s2a:sentinel-2-l2a:msil2a:202503
-#   file: 2025-03-22:t32ulb:05.11:103741:20250322t161215
-#   key:  8:wvp_10m:image_jp2
+#   file: 2025-03-22:t32ulb:05.11:103741:20250322t161215:8
+#   key:  wvp_10m:image_jp2
 [ source, mission=s2a/s2b/s2c, collection, level, takedate: YearMonth
-    [ takedate: Default, gridcode, procver, taketime, procdate
-        [ orbit, asset_name, mediatype ]]]
+    [ takedate: Default, gridcode, procver, taketime, procdate, orbit
+        [ asset_name, mediatype ]]]
 
 # Sentinel-1: ESA products from CDSE and RTC derivatives from the Microsoft Planetary Computer.
 # An RTC product keeps its source GRD's identity, so the collection keeps them apart.
 # Example: S1A_IW_GRDH_1SDV_20211220T182141_20211220T182206_041096_04E1DB_rtc (asset vv, image/tiff)
 #   dir:  mpc:s1a:sentinel-1-rtc:iw:grdh:202112
-#   file: 2021-12-20:dv:182141:182206
-#   key:  41096:vv:image_tiff
+#   file: 2021-12-20:dv:182141:182206:41096
+#   key:  vv:image_tiff
 [ source, mission=s1a/s1b/s1c/s1d, collection, mode, type, takedate: YearMonth
-    [ takedate: Default, polarization, taketime, stoptime
-        [ orbit, asset_name, mediatype ]]]
+    [ takedate: Default, polarization, taketime, stoptime, orbit
+        [ asset_name, mediatype ]]]

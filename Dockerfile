@@ -15,7 +15,7 @@ RUN set -ex; \
 
 COPY ./copernicus /tools/copernicus
 
-# Index keys up to 64 characters: S1 field keys such as 59587:schema-calibration-iw1-vh:application_xml
+# Index keys up to 64 characters: S1 field keys such as schema-calibration-iw1-vh:application_xml
 # overflow FDB's default 32. Only writers need this; each index records its own type for readers.
 ENV FDB_INDEX_TYPE=BTreeIndex64
 
