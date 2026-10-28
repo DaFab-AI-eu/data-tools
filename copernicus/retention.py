@@ -1,8 +1,8 @@
 """Reclaim DASI storage by deleting whole databases, oldest first.
 
 Each immediate child of the store root (e.g. /data/root) is a self-contained FDB database
-directory such as cdse:s2a:sentinel-2-l2a:msil2a:2025-03-22, holding the STAC documents and assets of every
-product acquired that day — the only unit that is safe to delete on the filesystem.
+directory such as cdse:s2a:sentinel-2-l2a:msil2a:202503, holding the STAC documents and assets of every
+product acquired that month — the only unit that is safe to delete on the filesystem.
 
 Retention acts only when free disk space falls below the configured threshold. It then
 deletes databases oldest first (by directory mtime) until the free-space target is met or

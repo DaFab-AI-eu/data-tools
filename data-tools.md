@@ -36,11 +36,11 @@ The base `StacIngestor` accepts a configurable STAC catalogue; each implementati
 Product metadata and binary assets share one DASI store, defined by `dasi.yml` and `schema`:
 
 ```text
-DASI Store (one database per acquisition date)
+DASI Store (one database per acquisition month)
     └─→ Product → STAC document (reserved asset "item") + selected product assets
 ```
 
-Sentinel product identifiers are parsed into hierarchical archive keys containing source, mission, acquisition, processing, orbit, and spatial attributes, extended with the asset name and media type. The raw STAC document is archived under the reserved asset name `item`, so a product's metadata and data always live in the same database. Databases are keyed by acquisition date, so whole-database retention removes whole days rather than a tile's entire history. Every key, including the date, is derived from the product ID.
+Sentinel product identifiers are parsed into hierarchical archive keys containing source, mission, acquisition, processing, orbit, and spatial attributes, extended with the asset name and media type. The raw STAC document is archived under the reserved asset name `item`, so a product's metadata and data always live in the same database. Databases are keyed by acquisition month, so whole-database retention removes whole months rather than a tile's entire history. Every key, including the date, is derived from the product ID. The schema types `takedate` as `YearMonth` at the database level, so FDB stores `2025-03-22` there as `202503`, and keeps the full date one level down; `YearMonth` needs FDB 5.22 or later. Queries name a whole date: `takedate=2025-03` is rejected, so list without `takedate` to see a month.
 
 Every key carries a `collection` (`sentinel-2-l1c`, `sentinel-2-l2a`, `sentinel-1-grd`, `sentinel-1-slc` or `sentinel-1-rtc`), read from the product ID and checked against the STAC item. A derived product can keep the identity of its source: a Sentinel-1 RTC product keeps that of the GRD it was made from, so without the collection the two would share a key and overwrite each other. A DASI `list` that omits `collection` returns every collection; specify it to select one.
 
@@ -111,7 +111,7 @@ Metadata retrieval is mandatory, while asset retrieval is optional and selective
 
 ### 2.4 Retention Operation
 
-Retention provides capacity- and age-driven lifecycle control for the DASI store. Each immediate child of the store root is a self-contained FDB database directory holding every product acquired on one date, and whole directories are the only filesystem-safe unit to remove. The policy is read from `retention.yml`:
+Retention provides capacity- and age-driven lifecycle control for the DASI store. Each immediate child of the store root is a self-contained FDB database directory holding every product acquired in one month, and whole directories are the only filesystem-safe unit to remove. The policy is read from `retention.yml`:
 
 - `min_free_percent`: retention acts only when free disk space is below this, and deletes until it is met again
 - `delete_size`: per-run cap on the bytes reclaimed
@@ -150,7 +150,7 @@ Retention is designed to run as a **blocking scheduled task** — a maintenance 
 |------------|----------------|
 | **Catalogue Search** | Collection, datetime, bounding box, cloud cover, and result limits |
 | **Product Lookup** | Exact STAC product ID with optional collection restriction |
-| **Product Archive** | Raw STAC documents and selected assets in one DASI store, keyed by acquisition date |
+| **Product Archive** | Raw STAC documents and selected assets in one DASI store, keyed by acquisition month |
 | **Duplicate Handling** | Existing products and requested assets are skipped |
 | **Data Staging** | Metadata and selected assets written to local files |
 | **Sentinel Support** | Sentinel-2 and Sentinel-1 GRD/SLC from Copernicus; Sentinel-1 radiometrically terrain corrected (RTC) from the Planetary Computer |
