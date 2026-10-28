@@ -13,12 +13,7 @@ OLD = 1  # well before the age cutoff
 
 
 def database(name, size, mtime):
-    return Database(
-        assets=Path(f"/data/assets/root/{name}"),
-        metadata=Path(f"/data/metadata/root/{name}"),
-        size=size,
-        mtime=mtime,
-    )
+    return Database(path=Path(f"/data/root/{name}"), size=size, mtime=mtime)
 
 
 def select(databases, *, total=100 * GB, free=10 * GB, min_free_percent=20, delete_size=50 * GB, min_age_days=7):
@@ -49,7 +44,7 @@ def test_parse_size_rejects_garbage():
 def test_oldest_first_until_free_target():
     dbs = [database("C", 4 * GB, OLD + 2), database("A", 4 * GB, OLD), database("B", 4 * GB, OLD + 1)]
     selected, freed, target = select(dbs)  # free 10GB, target 20GB -> need 10GB
-    assert [d.assets.name for d in selected] == ["A", "B", "C"]  # oldest-first
+    assert [d.path.name for d in selected] == ["A", "B", "C"]  # oldest-first
     assert freed == 12 * GB
     assert 10 * GB + freed >= target
 
@@ -57,7 +52,7 @@ def test_oldest_first_until_free_target():
 def test_delete_size_cap_stops_early():
     dbs = [database("A", 4 * GB, OLD), database("B", 4 * GB, OLD + 1), database("C", 4 * GB, OLD + 2)]
     selected, freed, target = select(dbs, delete_size=5 * GB)
-    assert [d.assets.name for d in selected] == ["A", "B"]  # capped before reaching the 20GB target
+    assert [d.path.name for d in selected] == ["A", "B"]  # capped before reaching the 20GB target
     assert freed == 8 * GB
     assert 10 * GB + freed < target
 
@@ -66,7 +61,7 @@ def test_min_age_days_is_a_hard_floor():
     young = database("young", 10 * GB, NOW)  # newer than the 7-day cutoff
     old = database("old", 4 * GB, OLD)
     selected, freed, _ = select([young, old])
-    assert [d.assets.name for d in selected] == ["old"]
+    assert [d.path.name for d in selected] == ["old"]
     assert freed == 4 * GB
 
 
@@ -77,34 +72,16 @@ def test_above_threshold_selects_nothing():
     assert freed == 0
 
 
-def make_store(tmp_path):
-    assets = tmp_path / "assets" / "root"
-    metadata = tmp_path / "metadata" / "root"
-    assets.mkdir(parents=True)
-    metadata.mkdir(parents=True)
-    return assets, metadata
+def test_scan_lists_database_directories_with_sizes(tmp_path):
+    (tmp_path / "A").mkdir()
+    (tmp_path / "A" / "data").write_bytes(b"x" * 1000)
+    (tmp_path / "A" / "toc").write_bytes(b"y" * 50)
+    (tmp_path / "stray").write_bytes(b"z")
+    (tmp_path / "link").symlink_to(tmp_path / "A")
 
+    dbs = scan_databases(tmp_path)
 
-def test_scan_pairs_aligned_and_sums_sizes(tmp_path):
-    assets, metadata = make_store(tmp_path)
-    (assets / "A").mkdir()
-    (assets / "A" / "data").write_bytes(b"x" * 1000)
-    (metadata / "A").mkdir()
-    (metadata / "A" / "doc").write_bytes(b"y" * 50)
-
-    dbs = {d.assets.name: d for d in scan_databases(assets, metadata)}
-
-    assert dbs["A"].size == 1050  # asset bytes + aligned metadata bytes
-    assert dbs["A"].metadata == metadata / "A"
-
-
-def test_scan_fails_when_metadata_counterpart_missing(tmp_path):
-    assets, metadata = make_store(tmp_path)
-    (assets / "B").mkdir()
-    (assets / "B" / "data").write_bytes(b"z" * 200)  # no aligned metadata dir
-
-    with pytest.raises(SystemExit):
-        scan_databases(assets, metadata)
+    assert [(d.path.name, d.size) for d in dbs] == [("A", 1050)]
 
 
 def test_dir_size_ignores_symlinks(tmp_path):

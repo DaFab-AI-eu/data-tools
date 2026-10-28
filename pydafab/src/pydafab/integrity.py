@@ -5,6 +5,9 @@ from typing import Any
 
 from .errors import AssetIntegrityError
 
+# Multihash prefix for a 16-byte MD5 digest
+MD5_MULTIHASH_PREFIX = "d50110"
+
 # Multihash prefix (varint algorithm code, then digest length) for each supported hash.
 # Varints must be minimally encoded, so each prefix has exactly one valid form.
 _MULTIHASHERS: dict[bytes, Callable[..., Any]] = {

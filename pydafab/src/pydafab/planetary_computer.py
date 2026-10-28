@@ -17,6 +17,7 @@ from requests import RequestException
 
 from .errors import AssetFetchError
 from .ingestor import PYSTAC_TIMEOUT, StacIngestor
+from .integrity import MD5_MULTIHASH_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +31,6 @@ BLOB_STORAGE_DOMAIN = ".blob.core.windows.net"
 BLOB_TIMEOUT = (10, 60)
 # A SAS token is renewed this long before the Planetary Computer says it expires
 SAS_EXPIRY_MARGIN = timedelta(minutes=5)
-# Multihash prefix for a 16-byte MD5 digest
-MD5_MULTIHASH_PREFIX = "d50110"
 
 
 def _container_url(href: str) -> str:

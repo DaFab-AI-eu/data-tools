@@ -33,10 +33,10 @@ pip install -e .
 Example (programmatic):
 
 ```python
-from pydafab import CopernicusIngestor, IngestTool
+from pydafab import CopernicusIngestor, DasiProductHandler
 
 ingestor = CopernicusIngestor()
-ingest_tool = IngestTool(ingestor)
+handler = DasiProductHandler(ingestor.source, "/tools/copernicus/ingest")
 
 params = {
 	"max_items": 5,
@@ -45,7 +45,7 @@ params = {
 }
 
 for product in ingestor.search(params):
-	ingest_tool.archive_product(product)
+	handler.archive(ingestor, product, ["TCI_60m"])
 ```
 
 For CLI-style helpers see the `ingest.py` and `search.py` modules in the
