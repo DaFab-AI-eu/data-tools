@@ -107,10 +107,10 @@ templates:
 Example (after installing and activating `.venv`):
 
 ```python
-from pydafab import CopernicusIngestor, IngestTool
+from pydafab import CopernicusIngestor, DasiProductHandler
 
 ingestor = CopernicusIngestor()
-ingest_tool = IngestTool(ingestor)
+handler = DasiProductHandler(ingestor.source, "/tools/copernicus/ingest")
 
 search_params = {
   "max_items": 10,
@@ -123,7 +123,7 @@ search_params = {
 products = ingestor.search(search_params)
 
 for product in products:
-  ingest_tool.archive_product(product)
+  handler.archive(ingestor, product, ["TCI_60m"])
 ```
 
 ## Code of Conduct

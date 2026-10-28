@@ -40,18 +40,41 @@ class DasiProductHandler:
     def _asset_records(self, product_id: str, asset_name: str) -> list:
         return list(self.dasi.list(self._build_query(product_id, asset_name)))
 
-    def archive_product(
-        self, ingestor: StacIngestor, product: Item, modifier: Any = None
+    def archive(
+        self,
+        ingestor: StacIngestor,
+        product: Item,
+        asset_names: list[str],
+        modifier: Any = None,
     ) -> None:
         """
-        Archive a product's STAC document beside its assets in Dasi
+        Archive a product's STAC document and the named assets in Dasi, flushed together.
+
+        This is the only method that flushes, so a product's document and assets become
+        visible in one step. Everything archived before a failure is still flushed, so a
+        rerun skips it. Records already in Dasi are not downloaded again.
 
         Args:
-            ingestor: Source of the product metadata to download.
-            product: Product object to be archived.
-            modifier: Optional tool to modify the metadata before download.
-        """
+            ingestor: Source of the product metadata and assets to download.
+            product: Product whose document and assets will be archived.
+            asset_names: Names of the assets to archive.
+            modifier: Optional tool to modify the metadata and assets before archiving.
 
+        Raises:
+            AssetNotFoundError: If the product has no asset with one of ``asset_names``.
+                Nothing is archived.
+        """
+        missing = sorted(name for name in asset_names if name not in product.assets)
+        if missing:
+            raise AssetNotFoundError(", ".join(missing), product.id)
+
+        try:
+            self._archive_item(ingestor, product, modifier)
+            self._archive_assets(ingestor, product, asset_names, modifier)
+        finally:
+            self.dasi.flush()
+
+    def _archive_item(self, ingestor: StacIngestor, product: Item, modifier: Any) -> None:
         if self._product_archived(product.id):
             logger.info("Product %s already exists in DASI, skipping download", product.id)
             return
@@ -65,32 +88,13 @@ class DasiProductHandler:
             data = modifier.modify_product_metadata(key, data)
 
         self.dasi.archive(key, data)
-        self.dasi.flush()
 
         logger.info("Archived product: %s", product.id)
 
-    def archive_assets(
-        self,
-        ingestor: StacIngestor,
-        product: Item,
-        asset_names: list[str],
-        modifier: Any = None,
+    def _archive_assets(
+        self, ingestor: StacIngestor, product: Item, asset_names: list[str], modifier: Any
     ) -> None:
-        """
-        Archive specified assets of a product using Dasi
-
-        Args:
-            ingestor: Source of the assets to download.
-            product: Product whose assets will be archived.
-            asset_names: List of asset names to archive.
-            modifier: Optional tool to modify the asset before download.
-        """
-
         logger.debug("Archiving assets of product: %s with names: %s", product.id, asset_names)
-
-        missing = sorted(name for name in asset_names if name not in product.assets)
-        if missing:
-            raise AssetNotFoundError(", ".join(missing), product.id)
 
         skipped = {name for name in asset_names if self._asset_records(product.id, name)}
         assets_to_fetch = [name for name in asset_names if name not in skipped]
@@ -103,21 +107,18 @@ class DasiProductHandler:
                 ", ".join(sorted(skipped)),
             )
 
-        try:
-            for asset_name in assets_to_fetch:
-                _asset, data = ingestor.fetch_asset(product, asset_name)
-                key = CopernicusKey.from_stac(self.source, product, asset_name)
+        for asset_name in assets_to_fetch:
+            _asset, data = ingestor.fetch_asset(product, asset_name)
+            key = CopernicusKey.from_stac(self.source, product, asset_name)
 
-                logger.debug("Archiving asset: %s with DASI key: %s", asset_name, key)
+            logger.debug("Archiving asset: %s with DASI key: %s", asset_name, key)
 
-                if modifier:
-                    data = modifier.modify_asset(key, data)
+            if modifier:
+                data = modifier.modify_asset(key, data)
 
-                self.dasi.archive(key, data)
+            self.dasi.archive(key, data)
 
-                logger.info("Archived asset: %s", asset_name)
-        finally:
-            self.dasi.flush()
+            logger.info("Archived asset: %s", asset_name)
 
     def retrieve_metadata(self, product_id: str) -> Iterator[bytes]:
         """

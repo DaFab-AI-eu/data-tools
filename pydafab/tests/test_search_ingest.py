@@ -182,14 +182,13 @@ def test_archive_product_and_assets(mock_dasi, mock_init, dummy_product, tmp_pat
         ingestor.fetch_asset = MagicMock(
             return_value=(MagicMock(media_type="image/jp2"), b"data")
         )
-        tool.archive_product(ingestor, dummy_product)
-        tool.archive_assets(ingestor, dummy_product, ["TCI_20m", "WVP_10m"])
+        tool.archive(ingestor, dummy_product, ["TCI_20m", "WVP_10m"])
         assert mock_dasi.return_value.archive.call_count == 3
 
 
 @patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
 @patch("pydafab.ingest_tool.Dasi")
-def test_archive_assets_raises_on_missing_asset(mock_dasi, mock_init, dummy_product, tmp_path):
+def test_archive_raises_on_missing_asset_before_archiving(mock_dasi, mock_init, dummy_product, tmp_path):
     with patch.object(CopernicusIngestor, "__init__", lambda self: None):
         ingestor = CopernicusIngestor()
         ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
@@ -197,23 +196,27 @@ def test_archive_assets_raises_on_missing_asset(mock_dasi, mock_init, dummy_prod
         tool = DasiProductHandler(ingestor.source, str(tmp_path))
 
         with pytest.raises(AssetNotFoundError):
-            tool.archive_assets(ingestor, dummy_product, ["NOT_A_REAL_BAND"])
+            tool.archive(ingestor, dummy_product, ["TCI_20m", "NOT_A_REAL_BAND"])
 
         mock_dasi.return_value.archive.assert_not_called()
 
 
 @patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
 @patch("pydafab.ingest_tool.Dasi")
-def test_archive_assets_raises_on_fetch_failure(mock_dasi, mock_init, dummy_product, tmp_path):
+def test_archive_flushes_what_it_archived_when_a_fetch_fails(mock_dasi, mock_init, dummy_product, tmp_path):
     with patch.object(CopernicusIngestor, "__init__", lambda self: None):
         ingestor = CopernicusIngestor()
         ingestor.s3_endpoint = "https://eodata.dataspace.copernicus.eu"
         ingestor.source = "CDSE"
         tool = DasiProductHandler(ingestor.source, str(tmp_path))
+        ingestor.fetch_product = MagicMock(return_value=b"{}")
         ingestor.fetch_asset = MagicMock(side_effect=AssetFetchError("s3://bucket/key"))
 
         with pytest.raises(AssetFetchError):
-            tool.archive_assets(ingestor, dummy_product, ["TCI_20m", "WVP_10m"])
+            tool.archive(ingestor, dummy_product, ["TCI_20m", "WVP_10m"])
+
+        mock_dasi.return_value.archive.assert_called_once()
+        mock_dasi.return_value.flush.assert_called_once()
 
 
 @patch("pydafab.copernicus.StacIngestor.__init__", return_value=None)
@@ -363,16 +366,17 @@ def test_retrieve_assets_returns_requested_names(mock_dasi, dummy_product, tmp_p
 
 
 @patch("pydafab.ingest_tool.Dasi")
-def test_archive_assets_skips_archived_assets(mock_dasi, dummy_product, tmp_path):
+def test_archive_skips_archived_records(mock_dasi, dummy_product, tmp_path):
     dasi = MagicMock()
-    dasi.list.side_effect = [[dasi_record()], []]
+    dasi.list.side_effect = [[dasi_record()], [dasi_record()], []]
     mock_dasi.return_value = dasi
     tool = DasiProductHandler("CDSE", str(tmp_path))
     ingestor = MagicMock()
     ingestor.fetch_asset.return_value = (MagicMock(), b"data")
 
-    tool.archive_assets(ingestor, dummy_product, ["TCI_20m", "WVP_10m"])
+    tool.archive(ingestor, dummy_product, ["TCI_20m", "WVP_10m"])
 
+    ingestor.fetch_product.assert_not_called()
     ingestor.fetch_asset.assert_called_once_with(dummy_product, "WVP_10m")
     assert dasi.archive.call_count == 1
 
@@ -388,7 +392,7 @@ def test_item_key_shares_the_product_key(dummy_product):
 
 
 @patch("pydafab.ingest_tool.Dasi")
-def test_archive_product_stores_item_beside_assets(mock_dasi, dummy_product, tmp_path):
+def test_archive_stores_item_beside_assets(mock_dasi, dummy_product, tmp_path):
     dasi = MagicMock()
     dasi.list.return_value = []
     mock_dasi.return_value = dasi
@@ -396,21 +400,37 @@ def test_archive_product_stores_item_beside_assets(mock_dasi, dummy_product, tmp
     ingestor = MagicMock()
     ingestor.fetch_product.return_value = b"{}"
 
-    tool.archive_product(ingestor, dummy_product)
+    tool.archive(ingestor, dummy_product, [])
 
     dasi.archive.assert_called_once_with(CopernicusKey.item("CDSE", dummy_product.id), b"{}")
-    dasi.flush.assert_called_once()
 
 
 @patch("pydafab.ingest_tool.Dasi")
-def test_archive_product_skips_archived_item(mock_dasi, dummy_product, tmp_path):
+def test_product_and_assets_become_visible_in_one_flush(mock_dasi, dummy_product, tmp_path):
+    dasi = MagicMock()
+    dasi.list.return_value = []
+    mock_dasi.return_value = dasi
+    tool = DasiProductHandler("CDSE", str(tmp_path))
+    ingestor = MagicMock()
+    ingestor.fetch_product.return_value = b"{}"
+    ingestor.fetch_asset.return_value = (MagicMock(), b"data")
+
+    tool.archive(ingestor, dummy_product, ["TCI_20m", "WVP_10m"])
+
+    assert dasi.archive.call_count == 3
+    dasi.flush.assert_called_once()
+    assert dasi.method_calls[-1] == ("flush", (), {})
+
+
+@patch("pydafab.ingest_tool.Dasi")
+def test_archive_skips_archived_item(mock_dasi, dummy_product, tmp_path):
     dasi = MagicMock()
     dasi.list.return_value = [dasi_record()]
     mock_dasi.return_value = dasi
     tool = DasiProductHandler("CDSE", str(tmp_path))
     ingestor = MagicMock()
 
-    tool.archive_product(ingestor, dummy_product)
+    tool.archive(ingestor, dummy_product, [])
 
     assert dasi.list.call_args.args[0] == CopernicusKey.item("CDSE", dummy_product.id).to_dasi_query()
     ingestor.fetch_product.assert_not_called()
