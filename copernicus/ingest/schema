@@ -1,7 +1,7 @@
 # DASI lowercases every key value, so constraint values must be lowercase to match.
 #
 # Each product's STAC document is archived beside its assets as the reserved asset
-# "item", so a product's metadata and data share a database and are retained together.
+# "metadata", so a product's metadata and data share a database and are retained together.
 # Databases are keyed by acquisition month: retention removes whole months, never a tile's history.
 # takedate is typed YearMonth (FDB 5.22+) at the database level, which stores 2025-03-22 as 202503,
 # and kept whole one level down. Default stops the lower level inheriting YearMonth.

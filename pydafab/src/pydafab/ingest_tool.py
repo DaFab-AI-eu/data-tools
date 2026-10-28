@@ -28,12 +28,12 @@ class DasiProductHandler:
     def _build_query(self, product_id: str, asset_name: str) -> dict:
         return CopernicusKey.from_product_id(self.source, product_id, asset_name).to_dasi_query()
 
-    def _item_query(self, product_id: str) -> dict:
-        return CopernicusKey.item(self.source, product_id).to_dasi_query()
+    def _metadata_query(self, product_id: str) -> dict:
+        return CopernicusKey.metadata(self.source, product_id).to_dasi_query()
 
     def _product_archived(self, product_id: str) -> bool:
         found = False
-        for _ in self.dasi.list(self._item_query(product_id)):
+        for _ in self.dasi.list(self._metadata_query(product_id)):
             found = True
         return found
 
@@ -69,18 +69,18 @@ class DasiProductHandler:
             raise AssetNotFoundError(", ".join(missing), product.id)
 
         try:
-            self._archive_item(ingestor, product, modifier)
+            self._archive_metadata(ingestor, product, modifier)
             self._archive_assets(ingestor, product, asset_names, modifier)
         finally:
             self.dasi.flush()
 
-    def _archive_item(self, ingestor: StacIngestor, product: Item, modifier: Any) -> None:
+    def _archive_metadata(self, ingestor: StacIngestor, product: Item, modifier: Any) -> None:
         if self._product_archived(product.id):
             logger.info("Product %s already exists in DASI, skipping download", product.id)
             return
 
         data = ingestor.fetch_product(product)
-        key = CopernicusKey.item(self.source, product.id)
+        key = CopernicusKey.metadata(self.source, product.id)
 
         logger.debug("Archiving product: %s with key: %s", product.id, key)
 
@@ -130,7 +130,7 @@ class DasiProductHandler:
         Yields:
             The metadata bytes for each matching record.
         """
-        for item in self.dasi.retrieve(self._item_query(product_id)):
+        for item in self.dasi.retrieve(self._metadata_query(product_id)):
             yield bytes(item.data)
 
     def retrieve_assets(

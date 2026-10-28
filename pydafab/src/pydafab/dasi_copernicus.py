@@ -48,7 +48,7 @@ Planetary Computer, share the first seven tokens and differ only in the optional
 """
 
 
-ITEM_ASSET = "item"
+METADATA_ASSET = "metadata"
 
 S2_COLLECTIONS = {"MSIL1C": "sentinel-2-l1c", "MSIL2A": "sentinel-2-l2a"}
 S1_COLLECTIONS = {"GRD": "sentinel-1-grd", "SLC": "sentinel-1-slc"}
@@ -80,9 +80,9 @@ class CopernicusKey(dict):
         raise ValueError(f"Unknown mission prefix in product ID: {product_id}")
 
     @classmethod
-    def item(cls, source: str, product_id: str) -> Self:
+    def metadata(cls, source: str, product_id: str) -> Self:
         """Key of the product's STAC document, archived beside its assets as a reserved asset."""
-        key = cls.from_product_id(source, product_id, ITEM_ASSET)
+        key = cls.from_product_id(source, product_id, METADATA_ASSET)
         key["mediatype"] = "application_json"
         return key
 

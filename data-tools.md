@@ -37,10 +37,10 @@ Product metadata and binary assets share one DASI store, defined by `dasi.yml` a
 
 ```text
 DASI Store (one database per acquisition month)
-    └─→ Product → STAC document (reserved asset "item") + selected product assets
+    └─→ Product → STAC document (reserved asset "metadata") + selected product assets
 ```
 
-Sentinel product identifiers are parsed into hierarchical archive keys containing source, mission, acquisition, processing, orbit, and spatial attributes, extended with the asset name and media type. The raw STAC document is archived under the reserved asset name `item`, so a product's metadata and data always live in the same database. Databases are keyed by acquisition month, so whole-database retention removes whole months rather than a tile's entire history. Every key, including the date, is derived from the product ID. The schema types `takedate` as `YearMonth` at the database level, so FDB stores `2025-03-22` there as `202503`, and keeps the full date one level down; `YearMonth` needs FDB 5.22 or later. Queries name a whole date: `takedate=2025-03` is rejected, so list without `takedate` to see a month.
+Sentinel product identifiers are parsed into hierarchical archive keys containing source, mission, acquisition, processing, orbit, and spatial attributes, extended with the asset name and media type. The raw STAC document is archived under the reserved asset name `metadata`, so a product's metadata and data always live in the same database. Databases are keyed by acquisition month, so whole-database retention removes whole months rather than a tile's entire history. Every key, including the date, is derived from the product ID. The schema types `takedate` as `YearMonth` at the database level, so FDB stores `2025-03-22` there as `202503`, and keeps the full date one level down; `YearMonth` needs FDB 5.22 or later. Queries name a whole date: `takedate=2025-03` is rejected, so list without `takedate` to see a month.
 
 Every key carries a `collection` (`sentinel-2-l1c`, `sentinel-2-l2a`, `sentinel-1-grd`, `sentinel-1-slc` or `sentinel-1-rtc`), read from the product ID and checked against the STAC item. A derived product can keep the identity of its source: a Sentinel-1 RTC product keeps that of the GRD it was made from, so without the collection the two would share a key and overwrite each other. A DASI `list` that omits `collection` returns every collection; specify it to select one.
 
@@ -77,9 +77,9 @@ Product ingestion follows a six-step process:
 1. **Product lookup**: Find the requested product ID in the STAC catalogue
 2. **Metadata retrieval**: Download the raw STAC product document
 3. **Key generation**: Parse the Sentinel identifier into a DASI key
-4. **Metadata archive**: Store and flush the product document as the reserved asset `item`
+4. **Metadata archive**: Store the product document as the reserved asset `metadata`
 5. **Asset retrieval**: Download each requested asset from S3-compatible storage
-6. **Asset archive**: Add asset name and media type to the key, then store and flush the asset data
+6. **Asset archive**: Add asset name and media type to the key, store the asset data, then flush the document and assets together
 
 ```bash
 python copernicus/ingest.py \
