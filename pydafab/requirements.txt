@@ -1,4 +1,4 @@
-pydasi>=0.3.1
+pydasi>=0.3.2
 pystac>1.12
 pystac-client>0.8
 boto3>1.41

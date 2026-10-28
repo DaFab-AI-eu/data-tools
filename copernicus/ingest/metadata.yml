@@ -1,7 +1,0 @@
----
-schema: /tools/copernicus/ingest/schema.metadata
-catalogue: toc
-store: file
-spaces:
-  - roots:
-      - path: /data/metadata/root

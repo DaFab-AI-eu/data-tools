@@ -78,10 +78,8 @@ def main():
 
         modifier = helpers.ProductModifier()
 
-        handler.archive_product(ingestor, product, modifier)
-
         requested = [name for name in args.asset_names.split(",") if name]
-        handler.archive_assets(ingestor, product, requested, modifier)
+        handler.archive(ingestor, product, requested, modifier)
     except (
         ProductNotFoundError,
         ProductFetchError,

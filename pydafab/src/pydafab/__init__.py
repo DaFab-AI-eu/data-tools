@@ -20,6 +20,8 @@ __version__ = version("pydafab")
 
 INGESTORS: dict[str, type[StacIngestor]] = {
     "sentinel-2-l2a": CopernicusIngestor,
+    "sentinel-1-grd": CopernicusIngestor,
+    "sentinel-1-slc": CopernicusIngestor,
     "sentinel-1-rtc": PlanetaryComputerIngestor,
 }
 
