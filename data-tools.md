@@ -111,19 +111,20 @@ Metadata retrieval is mandatory, while asset retrieval is optional and selective
 
 ### 2.4 Retention Operation
 
-Retention provides capacity- and age-driven lifecycle control for the DASI store. Each immediate child of the store root is a self-contained FDB database directory holding every product acquired in one month, and whole directories are the only filesystem-safe unit to remove. The policy is read from `retention.yml`:
+Retention provides capacity- and usage-driven lifecycle control for the DASI store. Each FDB database under the store root holds every product acquired in one month, and is the unit retention removes. FDB (from DASI 0.3.3) records when each database was last read and last written: a DASI `retrieve`, as used by staging, counts as a read and archiving as a write, while a `list`, as used by ingest's duplicate checks, counts as neither. The policy is read from `retention.yml`. Every setting is optional, and so is the file: with no file or no settings, retention does nothing.
 
-- `min_free_percent`: retention acts only when free disk space is below this, and deletes until it is met again
-- `delete_size`: per-run cap on the bytes reclaimed
-- `min_age_days`: databases whose directory mtime is younger than this are never deleted
+- `min_free_percent`: optional; retention acts only when free disk space is below this, and wipes until it is met again. 0 or omitted disables retention
+- `min_idle_days`: optional, default 30; databases read or written within this many days are never wiped. 0 removes the floor
+- `delete_size_gb`: optional; a run stops once this many GiB have been wiped in total. Omit for no limit
 
 The workflow:
 
 1. **Store validation**: Confirm that the store root exists
 2. **Threshold check**: Report disk usage; stop when free space is already at or above `min_free_percent`
-3. **Selection**: Enumerate database directories, drop any younger than `min_age_days`, and choose the oldest-first (by directory mtime) until the free-space target is met or `delete_size` is reached, whichever comes first
-4. **Dry-run inspection**: Report each selected database and the projected free space without modifying anything
-5. **Confirmed deletion**: Remove the selected directories only when `--do-it=true` is supplied
+3. **Access scan**: Read each database's last read and write times with `fdb-last-access --all --json`
+4. **Selection**: Drop databases accessed within `min_idle_days` and databases with no recorded access, then choose the least recently used (the later of last read and last write), sizing each with `fdb-stats`, until the free-space target is met or `delete_size_gb` is reached, whichever comes first
+5. **Dry-run inspection**: Report each selected database, its size, its idle time and the projected free space without modifying anything
+6. **Confirmed deletion**: Wipe the selected databases through DASI only when `--do-it=true` is supplied
 
 ```bash
 # Dry run
@@ -136,11 +137,20 @@ python copernicus/retention.py --root=/data/root --config=copernicus/ingest/rete
 python copernicus/retention.py --root=/data/root --clear-all --do-it=true
 ```
 
-The store root is preserved, paths outside them are not selected, and symbolic links are removed without traversing their targets.
+`--dasi-config` (default `/tools/copernicus/ingest/dasi.yml`) names the DASI configuration of the store.
+
+Exit codes:
+
+| Code | Meaning |
+|---|---|
+| 0 | Success. Either there was already enough free space, or retention wiped enough to reach `min_free_percent`, or it wiped as much as `delete_size_gb` allows in one run |
+| 1 | Retention could not run: the store root or a config file is missing, or FDB or DASI reported an error |
+| 2 | Invalid command-line arguments |
+| 3 | Retention cannot free enough space: every database idle for `min_idle_days` has been wiped (or, in a dry run, would be) and free space is still below `min_free_percent` |
 
 #### Operational Considerations
 
-Retention is designed to run as a **blocking scheduled task** — a maintenance window with no ingest or stage activity — rather than inside the archiving flow itself, because it removes database directories directly rather than through FDB. Selection is by directory mtime, which reflects when data was written rather than when it was last needed.
+Retention is designed to run as a **blocking scheduled task**, a maintenance window with no ingest or stage activity, because the access times are read before the wipes and a read in between would not be seen. FDB only allows a database's owner to wipe it, so retention must run as the same user as ingest. FDB updates a timestamp at most once an hour within one process (`FDB_ACCESS_TIMESTAMP_GRANULARITY`), which is immaterial at the scale of `min_idle_days`.
 
 ---
 
@@ -154,7 +164,7 @@ Retention is designed to run as a **blocking scheduled task** — a maintenance 
 | **Duplicate Handling** | Existing products and requested assets are skipped |
 | **Data Staging** | Metadata and selected assets written to local files |
 | **Sentinel Support** | Sentinel-2 and Sentinel-1 GRD/SLC from Copernicus; Sentinel-1 radiometrically terrain corrected (RTC) from the Planetary Computer |
-| **Storage Lifecycle** | Capacity- and age-based retention, or explicit full-store clearing, with dry-run inspection |
+| **Storage Lifecycle** | Capacity-driven retention of the least recently used months, or explicit full-store clearing, with dry-run inspection |
 | **Integration Model** | Python API and command-line tools for automated workflows |
 
 ---
