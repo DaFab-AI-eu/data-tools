@@ -1,16 +1,18 @@
-"""Reclaim DASI storage by deleting whole databases, oldest first.
+"""Reclaim DASI storage by wiping whole FDB databases, least recently used first.
 
-Each immediate child of the store root (e.g. /data/root) is a self-contained FDB database
-directory such as cdse:s2a:sentinel-2-l2a:msil2a:202503, holding the STAC documents and assets of every
-product acquired that month — the only unit that is safe to delete on the filesystem.
+A database (e.g. /data/root/cdse:s2a:sentinel-2-l2a:msil2a:202503) holds every product
+acquired in one month.
 
-Retention acts only when free disk space falls below the configured threshold. It then
-deletes databases oldest first (by directory mtime) until the free-space target is met or
-the per-run delete-size cap is reached. Databases younger than the minimum age are never
-deleted.
+Does nothing unless free disk space is below min_free_percent (default 0: disabled). It
+then wipes databases, longest idle first, until their sizes add up to the target.
+    min_idle_days (default 30): never wipe databases read or written this recently
+    delete_size_gb (default unlimited): stop a run once this much has been wiped
+Access times and sizes come from FDB. Databases with no recorded access are never wiped.
 
-Pass --clear-all to wipe everything under the store root (the legacy behaviour). Without
---do-it=true every mode is a dry run that only reports what would be deleted.
+Exits 3 if free space would still be below the target after wiping every idle database.
+
+--clear-all wipes everything under the store root, ignoring the policy. Without
+--do-it=true every mode is a dry run.
 
 Example usage:
     python copernicus/retention.py
@@ -20,63 +22,31 @@ Example usage:
 """
 
 import argparse
+import json
 import logging
+import math
 import re
 import shutil
-import time
-from dataclasses import dataclass
+import subprocess
+import sys
 from pathlib import Path
 
 import yaml
 from logging_setup import setup_logging
+from pydasi import Dasi
 
 logger = logging.getLogger(__name__)
 
-SIZE_UNITS = {
-    "": 1,
-    "b": 1,
-    "k": 1024,
-    "kb": 1024,
-    "kib": 1024,
-    "m": 1024**2,
-    "mb": 1024**2,
-    "mib": 1024**2,
-    "g": 1024**3,
-    "gb": 1024**3,
-    "gib": 1024**3,
-    "t": 1024**4,
-    "tb": 1024**4,
-    "tib": 1024**4,
-    "p": 1024**5,
-    "pb": 1024**5,
-    "pib": 1024**5,
-}
-
+GIB = 1024**3
 SECONDS_PER_DAY = 86400
+EXIT_TARGET_OUT_OF_REACH = 3
+DEFAULT_POLICY = {"min_free_percent": 0, "min_idle_days": 30, "delete_size_gb": math.inf}
 
 __copyright__ = "Copyright 2025, ECMWF"
 __license__ = "Apache License Version 2.0"
 
 
-@dataclass(frozen=True)
-class Policy:
-    """Retention thresholds read from the YAML config."""
-
-    min_free_percent: float
-    delete_size: int
-    min_age_days: int
-
-
-@dataclass(frozen=True)
-class Database:
-    """An FDB database directory under the store root."""
-
-    path: Path
-    size: int
-    mtime: float
-
-
-def parse_arguments():
+def _parse_arguments() -> argparse.Namespace:
     arg_parser = argparse.ArgumentParser("retention_dasi_db")
     arg_parser.add_argument(
         "--root",
@@ -87,13 +57,19 @@ def parse_arguments():
     arg_parser.add_argument(
         "--config",
         type=Path,
-        help="Retention policy YAML. default: /tools/copernicus/ingest/retention.yml",
+        help="Retention policy YAML; a missing file means every default. default: /tools/copernicus/ingest/retention.yml",
         default=Path("/tools/copernicus/ingest/retention.yml"),
+    )
+    arg_parser.add_argument(
+        "--dasi-config",
+        type=Path,
+        help="Dasi configuration of the store. default: /tools/copernicus/ingest/dasi.yml",
+        default=Path("/tools/copernicus/ingest/dasi.yml"),
     )
     arg_parser.add_argument(
         "--do-it",
         choices=["true", "false"],
-        help="Actually delete the items. default: false (dry run)",
+        help="Wipe for real. default: false (dry run)",
         default="false",
     )
     arg_parser.add_argument(
@@ -109,118 +85,69 @@ def parse_arguments():
     return arg_parser.parse_args()
 
 
-def format_size(num_bytes):
-    size = float(num_bytes)
-    for unit in ("B", "KiB", "MiB", "GiB", "TiB", "PiB"):
-        if size < 1024 or unit == "PiB":
-            return f"{size:.1f} {unit}"
-        size /= 1024
+def _full_date_key(key: dict[str, str]) -> dict[str, str]:
+    """A database key as FDB requests accept it.
+
+    FDB reports takedate as YearMonth; queries need a full date, so we expand 202503 to 2025-03-00, a day no product has.
+    """
+    month = key["takedate"]
+    return {**key, "takedate": f"{month[:4]}-{month[4:]}-00"}
 
 
-def parse_size(value):
-    """Parse a byte count from a plain number or a human string like '5GB' / '5GiB'."""
-    if isinstance(value, (int, float)):
-        return int(value)
-    text = str(value).strip().lower().replace(" ", "")
-    match = re.fullmatch(r"(\d+(?:\.\d+)?)([a-z]*)", text)
-    if not match or match.group(2) not in SIZE_UNITS:
-        raise SystemExit(f"Invalid size value in retention config: {value!r}")
-    number, unit = match.groups()
-    return int(float(number) * SIZE_UNITS[unit])
-
-
-def load_policy(config_path):
-    if not config_path.is_file():
-        raise SystemExit(f"Retention config not found: {config_path}")
-    data = yaml.safe_load(config_path.read_text()) or {}
-    try:
-        return Policy(
-            min_free_percent=float(data["min_free_percent"]),
-            delete_size=parse_size(data["delete_size"]),
-            min_age_days=int(data["min_age_days"]),
-        )
-    except KeyError as e:
-        raise SystemExit(f"Retention config missing key: {e}")
-
-
-def dir_size(path):
-    return sum(child.stat().st_size for child in path.rglob("*") if child.is_file() and not child.is_symlink())
-
-
-def scan_databases(root):
-    return [
-        Database(path, dir_size(path), path.stat().st_mtime)
-        for path in sorted(root.iterdir())
-        if path.is_dir() and not path.is_symlink()
-    ]
-
-
-def select_for_deletion(databases, *, total, free, min_free_percent, delete_size, min_age_days, now):
-    """Return the oldest-first databases to delete: free-target gated, size-capped, age-floored."""
-    target_free = total * min_free_percent / 100
-    cutoff = now - min_age_days * SECONDS_PER_DAY
-    eligible = sorted((db for db in databases if db.mtime < cutoff), key=lambda db: db.mtime)
-
-    selected = []
-    freed = 0
-    for db in eligible:
-        if free + freed >= target_free or freed >= delete_size:
-            break
-        selected.append(db)
-        freed += db.size
-    return selected, freed, target_free
-
-
-def run_retention(root, policy, do_it):
+def _run_retention(root: Path, dasi_config: Path, policy: dict[str, float], do_it: bool) -> None:
     usage = shutil.disk_usage(root)
-    free_pct = usage.free / usage.total * 100
+    target_free = usage.total * policy["min_free_percent"] / 100
+    delete_size = policy["delete_size_gb"] * GIB
 
-    logger.info("Store root: %s", root)
     logger.info(
-        "Free space: %s of %s (%.1f%%), target %.1f%%",
-        format_size(usage.free),
-        format_size(usage.total),
-        free_pct,
-        policy.min_free_percent,
+        "Free space: %.1f of %.1f GiB (%.1f%%), target %.1f%%",
+        usage.free / GIB,
+        usage.total / GIB,
+        usage.free / usage.total * 100,
+        policy["min_free_percent"],
     )
-
-    if free_pct >= policy.min_free_percent:
+    if usage.free >= target_free:
         logger.info("Free space above threshold; nothing to delete.")
         return
 
-    databases = scan_databases(root)
-    selected, freed, target_free = select_for_deletion(
-        databases,
-        total=usage.total,
-        free=usage.free,
-        min_free_percent=policy.min_free_percent,
-        delete_size=policy.delete_size,
-        min_age_days=policy.min_age_days,
-        now=time.time(),
-    )
-
-    if not selected:
-        logger.info("No databases older than %d days are eligible for deletion.", policy.min_age_days)
-        return
-
-    verb = "Deleting" if do_it else "Would delete"
-    for db in selected:
-        logger.info("%s: %s [%s]", verb, db.path.name, format_size(db.size))
-        if do_it:
-            shutil.rmtree(db.path)
-
-    projected_pct = (usage.free + freed) / usage.total * 100
-    logger.info("%d database(s), freeing %s (projected free %.1f%%)", len(selected), format_size(freed), projected_pct)
-    if usage.free + freed < target_free:
-        logger.warning(
-            "Target of %.1f%% not reached this run (delete-size cap or age floor).",
-            policy.min_free_percent,
+    idle = json.loads(
+        subprocess.check_output(
+            ["fdb-last-access", f"--config={dasi_config}", "--all", "--json", f"--older-than={policy['min_idle_days']}d"]
         )
+    )
+    dasi = Dasi(str(dasi_config))
+    freed = 0
+    for database in sorted(idle, key=lambda database: database["age"], reverse=True):
+        if usage.free + freed >= target_free or freed >= delete_size:
+            break
+        key = _full_date_key(database["key"])
+        stats = subprocess.check_output(
+            ["fdb-stats", f"--config={dasi_config}", "--raw", "--minimum-keys=", ",".join(f"{k}={v}" for k, v in key.items())],
+            text=True,
+        )
+        [total] = re.findall(r"^Total size\s*: ([\d,]+)", stats, re.MULTILINE)
+        size = int(total.replace(",", ""))
+        logger.info(
+            "%s: %s [%.1f GiB, idle %d days]",
+            "Wiping" if do_it else "Would wipe",
+            ":".join(database["key"].values()),
+            size / GIB,
+            database["age"] // SECONDS_PER_DAY,
+        )
+        if do_it:
+            for element in dasi.wipe({k: [v] for k, v in key.items()}, doit=True):
+                logger.debug("%s", element)
+        freed += size
+
+    logger.info("Freeing %.1f GiB (projected free %.1f%%)", freed / GIB, (usage.free + freed) / usage.total * 100)
     if not do_it:
-        logger.info("Dry run: pass --do-it=true to delete these databases.")
+        logger.info("Dry run: pass --do-it=true to wipe these databases.")
+    if usage.free + freed < target_free and freed < delete_size:
+        logger.error("No idle databases left to wipe; free space stays below the target.")
+        sys.exit(EXIT_TARGET_OUT_OF_REACH)
 
 
-def run_clear_all(root, do_it):
+def _run_clear_all(root: Path, do_it: bool) -> None:
     children = sorted(root.iterdir())
     logger.info("Clear-all under: %s", root)
     logger.info("Found %d items", len(children))
@@ -239,8 +166,8 @@ def run_clear_all(root, do_it):
         logger.info("Dry run: pass --do-it=true to delete these items.")
 
 
-def main():
-    args = parse_arguments()
+def main() -> None:
+    args = _parse_arguments()
     setup_logging(args.verbose)
     do_it = args.do_it == "true"
 
@@ -248,9 +175,10 @@ def main():
         raise SystemExit(f"Dasi store root not found or unsafe (volume not mounted?): {args.root}")
 
     if args.clear_all:
-        run_clear_all(args.root, do_it)
+        _run_clear_all(args.root, do_it)
     else:
-        run_retention(args.root, load_policy(args.config), do_it)
+        settings = yaml.safe_load(args.config.read_text()) if args.config.is_file() else None
+        _run_retention(args.root, args.dasi_config, DEFAULT_POLICY | (settings or {}), do_it)
 
 
 if __name__ == "__main__":

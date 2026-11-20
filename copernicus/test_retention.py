@@ -1,90 +1,108 @@
+"""End to end against FDB access timestamps and a real store: runs in the DASI image."""
+
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent))
+RETENTION = Path(__file__).parent / "retention.py"
+SCHEMA = Path(__file__).parent / "ingest" / "schema"
 
-from retention import Database, dir_size, parse_size, scan_databases, select_for_deletion
-
-GB = 1024**3
-NOW = 1_000_000_000
-OLD = 1  # well before the age cutoff
+pytestmark = pytest.mark.skipif(shutil.which("fdb-last-access") is None, reason="needs FDB with access timestamps")
 
 
-def database(name, size, mtime):
-    return Database(path=Path(f"/data/root/{name}"), size=size, mtime=mtime)
+def s2_key(mission, takedate, asset):
+    return {
+        "source": "cdse", "mission": mission, "collection": "sentinel-2-l2a", "level": "msil2a",
+        "takedate": takedate, "gridcode": "t32ulb", "procver": "05.11", "taketime": "103741",
+        "procdate": "20250322t161215", "orbit": "8", "asset_name": asset, "mediatype": "image_jp2",
+    }
 
 
-def select(databases, *, total=100 * GB, free=10 * GB, min_free_percent=20, delete_size=50 * GB, min_age_days=7):
-    return select_for_deletion(
-        databases,
-        total=total,
-        free=free,
-        min_free_percent=min_free_percent,
-        delete_size=delete_size,
-        min_age_days=min_age_days,
-        now=NOW,
+@pytest.fixture
+def store(tmp_path):
+    """Four S2 month databases: idle since January, idle since June, just written, and never recorded."""
+    from pydasi import Dasi
+
+    root = tmp_path / "root"
+    root.mkdir()
+    dasi_config = tmp_path / "dasi.yml"
+    dasi_config.write_text(
+        f"schema: {SCHEMA}\ncatalogue: toc\nstore: file\nspaces:\n  - roots:\n      - path: {root}\n"
     )
+    dasi = Dasi(str(dasi_config))
+    for mission, takedate in [("s2a", "2025-03-05"), ("s2a", "2025-03-22"), ("s2b", "2025-04-10"),
+                              ("s2c", "2025-05-10"), ("s2c", "2025-06-10")]:
+        dasi.archive(s2_key(mission, takedate, "b01"), b"x" * 1024)
+    dasi.flush()
+
+    def touch(mission, when):
+        subprocess.run(
+            ["fdb-touch", f"--config={dasi_config}", "--read", "--write", "--raw", "--minimum-keys=",
+             f"--time={when}", f"source=cdse,mission={mission}"],
+            check=True, capture_output=True,
+        )
+
+    touch("s2a", "20260101")
+    touch("s2b", "20260601")
+    for name in ("read.timestamp", "write.timestamp"):
+        (root / "cdse:s2c:sentinel-2-l2a:msil2a:202506" / name).unlink()
+
+    policy = tmp_path / "retention.yml"
+
+    def run(do_it, **settings):
+        policy.write_text("".join(f"{name}: {value}\n" for name, value in settings.items()))
+        result = subprocess.run(
+            [sys.executable, str(RETENTION), f"--root={root}", f"--config={policy}",
+             f"--dasi-config={dasi_config}", f"--do-it={do_it}"],
+            capture_output=True, text=True, check=False,
+        )
+        return result.returncode, sorted(path.name for path in root.iterdir()), result.stderr
+
+    return run
 
 
-@pytest.mark.parametrize(
-    "value,expected",
-    [(1024, 1024), ("5GB", 5 * GB), ("5GiB", 5 * GB), ("500MB", 500 * 1024**2), ("2G", 2 * GB), ("0", 0)],
-)
-def test_parse_size(value, expected):
-    assert parse_size(value) == expected
+TARGET_OUT_OF_REACH = 3
+COLD = "cdse:s2a:sentinel-2-l2a:msil2a:202503"
+WARM = "cdse:s2b:sentinel-2-l2a:msil2a:202504"
+FRESH = "cdse:s2c:sentinel-2-l2a:msil2a:202505"
+UNKNOWN = "cdse:s2c:sentinel-2-l2a:msil2a:202506"
 
 
-def test_parse_size_rejects_garbage():
-    with pytest.raises(SystemExit):
-        parse_size("5 bananas")
+def test_delete_size_stops_after_the_least_recently_used_database(store):
+    exit_code, remaining, log = store(do_it="true", min_free_percent=100, min_idle_days=7, delete_size_gb="0.000001")
+    assert exit_code == 0
+    assert remaining == [WARM, FRESH, UNKNOWN]
+    assert f"Wiping: {COLD}" in log
 
 
-def test_oldest_first_until_free_target():
-    dbs = [database("C", 4 * GB, OLD + 2), database("A", 4 * GB, OLD), database("B", 4 * GB, OLD + 1)]
-    selected, freed, target = select(dbs)  # free 10GB, target 20GB -> need 10GB
-    assert [d.path.name for d in selected] == ["A", "B", "C"]  # oldest-first
-    assert freed == 12 * GB
-    assert 10 * GB + freed >= target
+def test_never_wipes_recently_accessed_or_unrecorded_databases(store):
+    exit_code, remaining, log = store(do_it="true", min_free_percent=100, min_idle_days=7)
+    assert exit_code == TARGET_OUT_OF_REACH
+    assert remaining == [FRESH, UNKNOWN]
+    assert log.index(f"Wiping: {COLD}") < log.index(f"Wiping: {WARM}")
 
 
-def test_delete_size_cap_stops_early():
-    dbs = [database("A", 4 * GB, OLD), database("B", 4 * GB, OLD + 1), database("C", 4 * GB, OLD + 2)]
-    selected, freed, target = select(dbs, delete_size=5 * GB)
-    assert [d.path.name for d in selected] == ["A", "B"]  # capped before reaching the 20GB target
-    assert freed == 8 * GB
-    assert 10 * GB + freed < target
+def test_min_idle_days_defaults_to_30(store):
+    _, remaining, _ = store(do_it="true", min_free_percent=100)
+    assert remaining == [FRESH, UNKNOWN]
 
 
-def test_min_age_days_is_a_hard_floor():
-    young = database("young", 10 * GB, NOW)  # newer than the 7-day cutoff
-    old = database("old", 4 * GB, OLD)
-    selected, freed, _ = select([young, old])
-    assert [d.path.name for d in selected] == ["old"]
-    assert freed == 4 * GB
+def test_min_idle_days_0_spares_only_unrecorded_databases(store):
+    _, remaining, _ = store(do_it="true", min_free_percent=100, min_idle_days=0)
+    assert remaining == [UNKNOWN]
 
 
-def test_above_threshold_selects_nothing():
-    # free already at the target: entry guard on the first candidate stops immediately
-    selected, freed, _ = select([database("A", 4 * GB, OLD)], free=20 * GB)
-    assert selected == []
-    assert freed == 0
+def test_without_min_free_percent_nothing_is_wiped(store):
+    exit_code, remaining, _ = store(do_it="true")
+    assert exit_code == 0
+    assert remaining == [COLD, WARM, FRESH, UNKNOWN]
 
 
-def test_scan_lists_database_directories_with_sizes(tmp_path):
-    (tmp_path / "A").mkdir()
-    (tmp_path / "A" / "data").write_bytes(b"x" * 1000)
-    (tmp_path / "A" / "toc").write_bytes(b"y" * 50)
-    (tmp_path / "stray").write_bytes(b"z")
-    (tmp_path / "link").symlink_to(tmp_path / "A")
-
-    dbs = scan_databases(tmp_path)
-
-    assert [(d.path.name, d.size) for d in dbs] == [("A", 1050)]
-
-
-def test_dir_size_ignores_symlinks(tmp_path):
-    (tmp_path / "real").write_bytes(b"a" * 128)
-    (tmp_path / "link").symlink_to(tmp_path / "real")
-    assert dir_size(tmp_path) == 128
+def test_dry_run_wipes_nothing(store):
+    exit_code, remaining, log = store(do_it="false", min_free_percent=100, min_idle_days=7)
+    assert exit_code == TARGET_OUT_OF_REACH
+    assert remaining == [COLD, WARM, FRESH, UNKNOWN]
+    assert f"Would wipe: {COLD}" in log
